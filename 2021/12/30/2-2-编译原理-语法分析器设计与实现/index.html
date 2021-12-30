@@ -1,0 +1,633 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="2.2 Parsing（词法分析 &amp; 语法分析 ）同属于编译过程，将源码文件转换成更易于 理解、分析 并且 结构化 的AST。 可以通过以下工具，对比分析 源文件 以及其对应的 AST 树astexplorer.net 2.2.2 语法分析 – Grammar, 分析方法, go 实现语法分析-&gt; 根据某种特定的形式文法对 Token 序列 进行分析，并确定其语法结构的过程 具体实现">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2.2 编译原理 -- 语法分析器设计与实现">
+<meta property="og:url" content="http://example.com/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%AD%E6%B3%95%E5%88%86%E6%9E%90%E5%99%A8%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="2.2 Parsing（词法分析 &amp; 语法分析 ）同属于编译过程，将源码文件转换成更易于 理解、分析 并且 结构化 的AST。 可以通过以下工具，对比分析 源文件 以及其对应的 AST 树astexplorer.net 2.2.2 语法分析 – Grammar, 分析方法, go 实现语法分析-&gt; 根据某种特定的形式文法对 Token 序列 进行分析，并确定其语法结构的过程 具体实现">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-12-30T15:02:46.000Z">
+<meta property="article:modified_time" content="2021-12-30T15:25:13.928Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  <title>2.2 编译原理 -- 语法分析器设计与实现 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="2.2 编译原理 -- 语法分析器设计与实现">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-30 23:02" pubdate>
+        2021年12月30日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      14k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      118 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">2.2 编译原理 -- 语法分析器设计与实现</h1>
+            
+            <div class="markdown-body">
+              <h1><span id="22-parsing词法分析-amp-语法分析">2.2 Parsing（词法分析 &amp; 语法分析 ）</span></h1><p>同属于编译过程，将源码文件转换成更易于 理解、分析 并且 结构化 的AST。</p>
+<p>可以通过以下工具，对比分析 源文件 以及其对应的 AST 树<br><a target="_blank" rel="noopener" href="https://astexplorer.net/#/gist/825ad220483f53e3a7eec8bacd2bbac1/1245c33ba48428cdded60d7b65e6352d504371b4">astexplorer.net</a></p>
+<h2><span id="222-语法分析-grammar-分析方法-go-实现">2.2.2 语法分析 – Grammar, 分析方法, go 实现</span></h2><p>语法分析<br>-&gt; 根据某种特定的形式文法对 Token 序列 进行分析，并确定其语法结构的过程</p>
+<p>具体实现分为：自顶向下、自底向上 两种方式</p>
+<h3><span id="grammar-文法">Grammar 文法</span></h3><p>文法 -&gt; 形式化、精确描述某种编程语言的工具</p>
+<p>通过文法 -&gt; 定义一种语言的语法 -&gt; 一系列用于转换字符串的生产规则</p>
+<p>Golang 文法的生产规则，定义在 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/master/src/cmd/compile/internal/syntax/parser.go">src/cmd/compile/internal/syntax/parse.go</a>，以 源文件、Package、Import  生产规则的定义为例：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># 源文件</span><br><span class="hljs-attr">SourceFile</span> = PackageClause <span class="hljs-string">&quot;;&quot;</span> &#123; ImportDecl <span class="hljs-string">&quot;;&quot;</span> &#125; &#123; TopLevelDecl <span class="hljs-string">&quot;;&quot;</span> &#125; .<br><br><span class="hljs-comment"># Package</span><br><span class="hljs-attr">PackageClause</span>  = <span class="hljs-string">&quot;package&quot;</span> PackageName .<br><span class="hljs-attr">PackageName</span>    = identifier .<br><br><span class="hljs-comment"># Import</span><br><span class="hljs-attr">ImportDecl</span>       = <span class="hljs-string">&quot;import&quot;</span> ( ImportSpec | <span class="hljs-string">&quot;(&quot;</span> &#123; ImportSpec <span class="hljs-string">&quot;;&quot;</span> &#125; <span class="hljs-string">&quot;)&quot;</span> ) .<br><span class="hljs-attr">ImportSpec</span>       = [ <span class="hljs-string">&quot;.&quot;</span> | PackageName ] ImportPath .<br><span class="hljs-attr">ImportPath</span>       = string_lit .<br></code></pre></td></tr></table></figure>
+
+<h4><span id="sourcefile">SourceFile</span></h4><p>每个 Golang 源文件都会被解析成一个独立的 AST，AST 最顶层的结构/开始符号都是 SourceFile：</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs nginx"><span class="hljs-attribute">SourceFile</span> = PackageClause <span class="hljs-string">&quot;;&quot;</span> &#123; <span class="hljs-attribute">ImportDecl</span> <span class="hljs-string">&quot;;&quot;</span> &#125; &#123; <span class="hljs-attribute">TopLevelDecl</span> <span class="hljs-string">&quot;;&quot;</span> &#125; .<br></code></pre></td></tr></table></figure>
+
+<p>包括了 一个 Package 的定义 以及 可选的 import 声明(ImportDecl) 和其他的顶层声明(TopLevelDecl)</p>
+<p>其中，Package、ImportDecl、TopLevelDecl 都可以继续细化，如：</p>
+<figure class="highlight ebnf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ebnf"><span class="hljs-attribute">ImportDecl</span>       = <span class="hljs-string">&quot;import&quot;</span> ( ImportSpec | <span class="hljs-string">&quot;(&quot;</span> &#123; ImportSpec <span class="hljs-string">&quot;;&quot;</span> &#125; <span class="hljs-string">&quot;)&quot;</span> ) .<br><span class="hljs-attribute">ImportSpec</span>       = [ <span class="hljs-string">&quot;.&quot;</span> | PackageName ] ImportPath .<br><span class="hljs-attribute">ImportPath</span>       = string_lit .<br></code></pre></td></tr></table></figure>
+
+<p><strong>因此，可以将 Go 源码文件 -&gt; SourceFile -&gt; 独立的、抽象的 语法树</strong></p>
+<p>在具体实现上，对应到了 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/nodes.go#L36">src/cmd/compile/internal/syntax.File 结构体</a></p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> Files<br><span class="hljs-regexp">//</span> package PkgName; DeclList[<span class="hljs-number">0</span>], DeclList[<span class="hljs-number">1</span>], ...<br>type File struct &#123;<br>	Pragma   Pragma<br>	PkgName  *Name  <span class="hljs-regexp">//</span> 包名<br>	DeclList []Decl <span class="hljs-regexp">//</span> 包含各种声明的列表<br>	Lines    uint   <span class="hljs-regexp">//</span> 源文件代码行数<br>	node            <br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="topleveldecl-顶层声明">TopLevelDecl – 顶层声明</span></h4><p>分为了 常量、类型、变量、函数、方法 五种类型。</p>
+<p>定义在 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/master/src/cmd/compile/internal/syntax/parser.go#L555">src/cmd/compile/internal/syntax/parser.go</a></p>
+<p>const、type、var 类型的 <strong>文法定义</strong> 如下：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># const</span><br><span class="hljs-attr">ConstDecl</span> = <span class="hljs-string">&quot;const&quot;</span> ( ConstSpec | <span class="hljs-string">&quot;(&quot;</span> &#123; ConstSpec <span class="hljs-string">&quot;;&quot;</span> &#125; <span class="hljs-string">&quot;)&quot;</span> ) .<br><span class="hljs-attr">ConstSpec</span> = IdentifierList [ [ Type ] <span class="hljs-string">&quot;=&quot;</span> ExpressionList ] .<br><br><span class="hljs-comment"># type</span><br><span class="hljs-attr">TypeDecl</span>  = <span class="hljs-string">&quot;type&quot;</span> ( TypeSpec | <span class="hljs-string">&quot;(&quot;</span> &#123; TypeSpec <span class="hljs-string">&quot;;&quot;</span> &#125; <span class="hljs-string">&quot;)&quot;</span> ) .<br><span class="hljs-attr">TypeSpec</span>  = AliasDecl | TypeDef .<br><span class="hljs-attr">AliasDecl</span> = identifier <span class="hljs-string">&quot;=&quot;</span> Type .<br><span class="hljs-attr">TypeDef</span>   = identifier Type .<br><br><span class="hljs-comment"># var </span><br><span class="hljs-attr">VarDecl</span> = <span class="hljs-string">&quot;var&quot;</span> ( VarSpec | <span class="hljs-string">&quot;(&quot;</span> &#123; VarSpec <span class="hljs-string">&quot;;&quot;</span> &#125; <span class="hljs-string">&quot;)&quot;</span> ) .<br><span class="hljs-attr">VarSpec</span> = IdentifierList ( Type [ <span class="hljs-string">&quot;=&quot;</span> ExpressionList ] | <span class="hljs-string">&quot;=&quot;</span> ExpressionList ) .<br></code></pre></td></tr></table></figure>
+
+<p>func(函数) 和 method(方法) 的定义稍微复杂</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># func</span><br><span class="hljs-attr">FunctionDecl</span> = <span class="hljs-string">&quot;func&quot;</span> FunctionName [ TypeParams ] ( Function | Signature ) .<br><span class="hljs-attr">FunctionName</span> = identifier .<br><span class="hljs-attr">Function</span>     = Signature FunctionBody .<br><br><span class="hljs-comment"># method</span><br><span class="hljs-attr">MethodDecl</span>   = <span class="hljs-string">&quot;func&quot;</span> Receiver MethodName ( Function | Signature ) .<br><span class="hljs-attr">Receiver</span>     = Parameters .<br></code></pre></td></tr></table></figure>
+
+<p>此外还能看到 statement(声明) 的 文法定义 ：</p>
+<figure class="highlight gherkin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs gherkin"><span class="hljs-comment"># Block 代码块</span><br>Block = <span class="hljs-string">&quot;&#123;&quot;</span> StatementList <span class="hljs-string">&quot;&#125;&quot;</span> .<br><br><span class="hljs-comment"># 声明列表</span><br>StatementList = &#123; Statement <span class="hljs-string">&quot;;&quot;</span> &#125; .<br><br><span class="hljs-comment"># 声明 -- 15 中不同的语法结构：go、return、break、contine、goto、block、if、switch-case、select、for loop、defer</span><br>Statement =<br>	Declaration |<span class="hljs-string"> LabeledStmt </span>|<span class="hljs-string"> SimpleStmt </span>|<br>	GoStmt |<span class="hljs-string"> ReturnStmt </span>|<span class="hljs-string"> BreakStmt </span>|<span class="hljs-string"> ContinueStmt </span>|<span class="hljs-string"> GotoStmt </span>|<br>	FallthroughStmt |<span class="hljs-string"> Block </span>|<span class="hljs-string"> IfStmt </span>|<span class="hljs-string"> SwitchStmt </span>|<span class="hljs-string"> SelectStmt </span>|<span class="hljs-string"> ForStmt </span>|<br>	DeferStmt .<br><br><span class="hljs-comment"># 表达式</span><br>SimpleStmt = EmptyStmt |<span class="hljs-string"> ExpressionStmt </span>|<span class="hljs-string"> SendStmt </span>|<span class="hljs-string"> IncDecStmt </span>|<span class="hljs-string"> Assignment </span>|<span class="hljs-string"> ShortVarDecl .</span><br></code></pre></td></tr></table></figure>
+
+<h3><span id="分析方法-ll-lr-la">分析方法 – LL, LR, LA</span></h3><p>自顶向下（LL）：找到当前输入流 最左推导 的过程 -&gt; 对于任意一个输入流，根据当前的输入符号，确定一个生产规则，使用生产规则右侧的符号替代相应的非终结符向下推导</p>
+<p>自底向上（LR(0), SLR, LR(1), LALR(1)）：解析器会从最简单的符号进行推导，在解析的最后合并成开始符号</p>
+<p>向前查看（LA）：在不同规则发生冲突时，当前解析器需要通过预读一些 Token 判断当前应该用什么规则对输入流进行展开 或者 规约</p>
+<p>golang 采用的 <strong>LALR(1)</strong> 文法，需要 <strong>预读</strong> 一些 Token 保证出现冲突的生产规则能够被正确处理  </p>
+<p>结合代码来看，能在 scanner 中看到预读下一个字符，生成当前 Token 的代码：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-comment"># syntax.scanner.next()</span><br><span class="hljs-keyword">func</span> (s *scanner) <span class="hljs-keyword">next</span>() &#123;<br>	......<br>	switch s.ch &#123;<br>	......<br>	<span class="hljs-regexp">//</span> scanner 扫描到 . 后，预读下一个字符<br>	<span class="hljs-regexp">//</span> 判断是否为 .. or ...<br>    case <span class="hljs-string">&#x27;.&#x27;</span>:<br>		s.nextch()<br>		<span class="hljs-keyword">if</span> isDecimal(s.ch) &#123;<br>			s.number(true)<br>			<span class="hljs-keyword">break</span><br>		&#125;<br>		<span class="hljs-keyword">if</span> s.ch == <span class="hljs-string">&#x27;.&#x27;</span> &#123;<br>			s.nextch()<br>			<span class="hljs-keyword">if</span> s.ch == <span class="hljs-string">&#x27;.&#x27;</span> &#123;<br>				s.nextch()<br>				s.tok = _DotDotDot<br>				<span class="hljs-keyword">break</span><br>			&#125;<br>			s.rewind() <span class="hljs-regexp">//</span> now s.ch holds <span class="hljs-number">1</span>st <span class="hljs-string">&#x27;.&#x27;</span><br>			s.nextch() <span class="hljs-regexp">//</span> consume <span class="hljs-number">1</span>st <span class="hljs-string">&#x27;.&#x27;</span> again<br>		&#125;<br>		s.tok = _Dot<br>	<span class="hljs-regexp">//</span> scanner 扫描到 /后，预读一个字符<br>	<span class="hljs-regexp">//</span> 判断是否为 <span class="hljs-regexp">//</span> or /*<br>	case <span class="hljs-string">&#x27;/&#x27;</span>:<br>		s.nextch()<br>		<span class="hljs-keyword">if</span> s.ch == <span class="hljs-string">&#x27;/&#x27;</span> &#123;<br>			s.nextch()<br>			s.lineComment()<br>			goto redo<br>		&#125;<br>		<span class="hljs-keyword">if</span> s.ch == <span class="hljs-string">&#x27;*&#x27;</span> &#123;<br>			s.nextch()<br>			s.fullComment()<br>			<span class="hljs-keyword">if</span> line, _ := s.pos(); line &gt; s.line &amp;&amp; nlsemi &#123;<br>				<span class="hljs-regexp">//</span> A multi-line comment acts like a newline;<br>				<span class="hljs-regexp">//</span> it translates to a <span class="hljs-string">&#x27;;&#x27;</span> <span class="hljs-keyword">if</span> nlsemi is set.<br>				s.lit = <span class="hljs-string">&quot;newline&quot;</span><br>				s.tok = _Semi<br>				<span class="hljs-keyword">break</span><br>			&#125;<br>			goto redo<br>		&#125;<br>		s.op, s.prec = Div, precMul<br>		goto assignop<br>    ......<br></code></pre></td></tr></table></figure>
+
+
+<h3><span id="golang-实现">golang 实现</span></h3><p>最右推导 + 向前看 构成了 Golang paeser 的基本原理，也是大部分编程语言的选择</p>
+<p>2.1 中提到的 编译器的主函数 Main() 调用的 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/d902791b509b641683d4ec58b282180c56918aec/src/cmd/compile/internal/gc/noder.go#L28">src/cmd/compile/internal/gc.parseFiles()</a> 使用多个 goroutine 对源文件进行解析</p>
+<p><strong>解析完成后，将其转化为 AST 树：</strong></p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs less"><span class="hljs-selector-tag">1</span>. 遍历 <span class="hljs-selector-tag">noder</span> 集合<br><span class="hljs-selector-tag">2</span>. 调用 <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.node</span>() 方法，实际是对应到了 <span class="hljs-selector-tag">noder</span><span class="hljs-selector-class">.go</span> 中的 <span class="hljs-selector-tag">node</span>()<br><span class="hljs-selector-tag">3</span>. <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.node</span>() 方法，将 <span class="hljs-selector-tag">AST</span> 的根节点，<span class="hljs-selector-tag">push</span> 到 <span class="hljs-selector-tag">xtop</span><span class="hljs-selector-attr">[]</span> 中<br><span class="hljs-selector-tag">4</span>. 类型检查 及 中间代码生成等步骤，直接使用到了 <span class="hljs-selector-tag">xtop</span><span class="hljs-selector-attr">[]</span><br></code></pre></td></tr></table></figure>
+
+<p>具体源码为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// parseFile() 并发的将源代码文件解析到 *syntax.File 结构体中</span><br><span class="hljs-comment">// *syntax.File -&gt; 对应源码文件的 AST</span><br><span class="hljs-comment">// xtop[*Node] 用于存放 AST 的 root</span><br><span class="hljs-comment">// 函数最后返回解析代码的总行数</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">parseFiles</span><span class="hljs-params">(filenames []<span class="hljs-keyword">string</span>)</span> <span class="hljs-title">uint</span></span> &#123;<br>	noders := <span class="hljs-built_in">make</span>([]*noder, <span class="hljs-number">0</span>, <span class="hljs-built_in">len</span>(filenames))<br>	<span class="hljs-comment">// 限制同时打开文件的数量</span><br>	sem := <span class="hljs-built_in">make</span>(<span class="hljs-keyword">chan</span> <span class="hljs-keyword">struct</span>&#123;&#125;, runtime.GOMAXPROCS(<span class="hljs-number">0</span>)+<span class="hljs-number">10</span>)<br>    <br>    <span class="hljs-comment">// 遍历每个源文件</span><br>	<span class="hljs-keyword">for</span> _, filename := <span class="hljs-keyword">range</span> filenames &#123;<br>		p := &amp;noder&#123;<br>			basemap: <span class="hljs-built_in">make</span>(<span class="hljs-keyword">map</span>[*syntax.PosBase]*src.PosBase),<br>			err:     <span class="hljs-built_in">make</span>(<span class="hljs-keyword">chan</span> syntax.Error),<br>		&#125;<br>		noders = <span class="hljs-built_in">append</span>(noders, p)<br>        <span class="hljs-comment">// 多个 goroutine 并发解析源文件</span><br>		<span class="hljs-keyword">go</span> <span class="hljs-function"><span class="hljs-keyword">func</span><span class="hljs-params">(filename <span class="hljs-keyword">string</span>)</span></span> &#123;<br>			sem &lt;- <span class="hljs-keyword">struct</span>&#123;&#125;&#123;&#125;<br>			<span class="hljs-comment">// defer 控制 goroutine</span><br>			<span class="hljs-keyword">defer</span> <span class="hljs-function"><span class="hljs-keyword">func</span><span class="hljs-params">()</span></span> &#123; &lt;-sem &#125;()<br>			<span class="hljs-keyword">defer</span> <span class="hljs-built_in">close</span>(p.err)<br>			base := syntax.NewFileBase(filename)<br>            <br>			f, err := os.Open(filename)<br>			<span class="hljs-keyword">if</span> err != <span class="hljs-literal">nil</span> &#123;<br>				p.error(syntax.Error&#123;Msg: err.Error()&#125;)<br>				<span class="hljs-keyword">return</span><br>			&#125;<br>			<span class="hljs-keyword">defer</span> f.Close()<br>            <span class="hljs-comment">// 实际调用了 syntax.Parse() 对源文件进行 词法&amp;语法 解析</span><br>			p.file, _ = syntax.Parse(base, f, p.error, p.pragma, syntax.CheckBranches) <span class="hljs-comment">// errors are tracked via p.error</span><br>		&#125;(filename)<br>	&#125;<br>    <span class="hljs-comment">// 统计解析代码的总行数</span><br>	<span class="hljs-keyword">var</span> lines <span class="hljs-keyword">uint</span><br>	<br>    <span class="hljs-comment">// 遍历 noders 集合</span><br>    <span class="hljs-comment">// 通过 noder.node() 将其转化为 AST</span><br>    <span class="hljs-comment">// 最后放入到 xtop[] 中</span><br>    <span class="hljs-comment">// type check 阶段实际遍历的是：xtop[]</span><br>	<span class="hljs-keyword">for</span> _, p := <span class="hljs-keyword">range</span> noders &#123;<br>		<span class="hljs-keyword">for</span> e := <span class="hljs-keyword">range</span> p.err &#123;<br>			p.yyerrorpos(e.Pos, <span class="hljs-string">&quot;%s&quot;</span>, e.Msg)<br>		&#125;<br><br>		p.node()<br>		lines += p.file.Lines<br>		p.file = <span class="hljs-literal">nil</span> <span class="hljs-comment">// release memory</span><br><br>		<span class="hljs-keyword">if</span> nsyntaxerrors != <span class="hljs-number">0</span> &#123;<br>			errorexit()<br>		&#125;<br>		<span class="hljs-comment">// Always run testdclstack here, even when debug_dclstack is not set, as a sanity measure.</span><br>		testdclstack()<br>	&#125;<br><br>	localpkg.Height = myheight<br>    <span class="hljs-comment">// 返回</span><br>	<span class="hljs-keyword">return</span> lines<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>解析过程中，调用了 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/syntax.go#L67">src/cmd/compile/internal/syntax.parse()</a> 对单个文件进行 词法&amp;语法解析。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs go"># Parse()<br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">Parse</span><span class="hljs-params">(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler, mode Mode)</span> <span class="hljs-params">(_ *File, first error)</span></span> &#123;<br>	<span class="hljs-keyword">defer</span> <span class="hljs-function"><span class="hljs-keyword">func</span><span class="hljs-params">()</span></span> &#123;<br>		<span class="hljs-keyword">if</span> p := <span class="hljs-built_in">recover</span>(); p != <span class="hljs-literal">nil</span> &#123;<br>			<span class="hljs-keyword">if</span> err, ok := p.(Error); ok &#123;<br>				first = err<br>				<span class="hljs-keyword">return</span><br>			&#125;<br>			<span class="hljs-built_in">panic</span>(p)<br>		&#125;<br>	&#125;()<br><br>    <span class="hljs-comment">// 初始化 parser</span><br>	<span class="hljs-keyword">var</span> p parser<br>	p.init(base, src, errh, pragh, mode)<br>	p.next()<br>	<span class="hljs-comment">// 实际调用了 parser.fileOrNil()</span><br>	<span class="hljs-keyword">return</span> p.fileOrNil(), p.first<br>&#125;<br></code></pre></td></tr></table></figure>
+
+
+<p>syntax.parse() 初始化了一个新的 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/parser.go#L17"> src/cmd/compile/internal/syntax.parser</a> 结构体，结构体中包含了 <strong>scanner 结构体</strong>，用于对文件进行词法分析</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs awk">type parser struct &#123;<br>	file  *PosBase<br>	errh  ErrorHandler<br>	mode  Mode<br>	pragh PragmaHandler<br>	<span class="hljs-regexp">//</span> 词法分析结构体<br>	scanner<br><br>	base   *PosBase <span class="hljs-regexp">//</span> current position base<br>	first  error    <span class="hljs-regexp">//</span> first error encountered<br>	errcnt int      <span class="hljs-regexp">//</span> number of errors encountered<br>	pragma Pragma   <span class="hljs-regexp">//</span> pragmas<br><br>	fnest  int    <span class="hljs-regexp">//</span> <span class="hljs-keyword">function</span> nesting level (<span class="hljs-keyword">for</span> error handling)<br>	xnest  int    <span class="hljs-regexp">//</span> expression nesting level (<span class="hljs-keyword">for</span> complit ambiguity resolution)<br>	indent []byte <span class="hljs-regexp">//</span> tracing support<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同时通过 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/parser.go#L376">src/cmd/compile/internal/syntax.parser.fileOrNil()</a> 基于 Golang 文法的定义，实现对源文件的词法&amp;语法分析</p>
+<p>逻辑大致如下：</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs less"><span class="hljs-selector-tag">1</span>. 匹配必选项 <span class="hljs-selector-tag">PackageClause</span>, 如果该步骤发生错误，直接返回<br><span class="hljs-selector-tag">2</span>. 匹配可选项 <span class="hljs-selector-tag">Import</span>, 通过 <span class="hljs-selector-tag">parser</span><span class="hljs-selector-class">.appendGroup</span>() 将解析后的结果放入到 <span class="hljs-selector-tag">DeclList</span><span class="hljs-selector-attr">[]</span><br><span class="hljs-selector-tag">3</span>. 根据匹配到的不同关键字：<br>若当前传入 <span class="hljs-selector-tag">Token</span> 为 <span class="hljs-selector-tag">_Func</span>，则需要调用 <span class="hljs-selector-tag">parser</span><span class="hljs-selector-class">.funcDeclOrNil</span>() 单独处理后，放入到 <span class="hljs-selector-tag">DeclList</span><span class="hljs-selector-attr">[]</span> 中<br>若匹配到其他 <span class="hljs-selector-tag">Token</span>，则通过向 <span class="hljs-selector-tag">parser</span><span class="hljs-selector-class">.appendGroup</span>()  传入不同类型的处理函数，将解析结果放入到 <span class="hljs-selector-tag">DeclList</span><span class="hljs-selector-attr">[]</span> 中<br><span class="hljs-selector-tag">4</span>. 异常情况处理<br></code></pre></td></tr></table></figure>
+
+<p>具体源码为：</p>
+<figure class="highlight sqf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br></pre></td><td class="code"><pre><code class="hljs sqf"><span class="hljs-comment">// SourceFile = PackageClause &quot;;&quot; &#123; ImportDecl &quot;;&quot; &#125; &#123; TopLevelDecl &quot;;&quot; &#125; .</span><br>func (p *parser) fileOrNil() *File &#123;<br>	<span class="hljs-keyword">if</span> trace &#123;<br>		defer p.trace(<span class="hljs-string">&quot;file&quot;</span>)()<br>	&#125;<br>    <span class="hljs-comment">// 0 打开 source file</span><br>	f := new(File)<br>	f.pos = p.pos()<br><br>	<span class="hljs-comment">// 1. 首先解析 PackageClause 定义</span><br>	<span class="hljs-comment">// 判断读取的 Token 是否为 Package，若不是则返回</span><br>	<span class="hljs-keyword">if</span> !p.got(<span class="hljs-variable">_Package</span>) &#123;<br>		p.syntaxError(<span class="hljs-string">&quot;package statement must be first&quot;</span>)<br>		return <span class="hljs-literal">nil</span><br>	&#125;<br>	<span class="hljs-comment">// 获取 package 定义</span><br>	f.Pragma = p.takePragma()<br>	<span class="hljs-comment">// p.name() 返回当前的字面量</span><br>	f.PkgName = p.<span class="hljs-built_in">name</span>()<br>	p.want(<span class="hljs-variable">_Semi</span>)<br><br>	<span class="hljs-comment">// don&#x27;t bother continuing if package clause has errors</span><br>	<span class="hljs-keyword">if</span> p.first != <span class="hljs-literal">nil</span> &#123;<br>		return <span class="hljs-literal">nil</span><br>	&#125;<br><br>    <span class="hljs-comment">// 2. 解析 Import 声明</span><br>	<span class="hljs-comment">// &#123; ImportDecl &quot;;&quot; &#125;</span><br>	<span class="hljs-comment">// 判断读取的 Token 是否为 Import</span><br>	<span class="hljs-keyword">for</span> p.got(<span class="hljs-variable">_Import</span>) &#123;<br>	    <span class="hljs-comment">// Import 加入到 DeclList</span><br>		f.DeclList = p.appendGroup(f.DeclList, p.importDecl)<br>		p.want(<span class="hljs-variable">_Semi</span>)<br>	&#125;<br>    <br>    <span class="hljs-comment">// 3. 解析 TopLevelDecl 顶层声明</span><br>	<span class="hljs-comment">// &#123; TopLevelDecl &quot;;&quot; &#125;</span><br>	<span class="hljs-comment">// 直到解析到 文件末尾</span><br>	<span class="hljs-keyword">for</span> p.tok != <span class="hljs-variable">_EOF</span> &#123;<br>	    <span class="hljs-comment">// switch-case 判断 Token 类型，跳转到对应的处理逻辑</span><br>		<span class="hljs-keyword">switch</span> p.tok &#123;<br>		<span class="hljs-keyword">case</span> <span class="hljs-variable">_Const</span>:    <span class="hljs-comment">// 解析常量，传入了函数 constDecl()</span><br>			p.next()<br>			f.DeclList = p.appendGroup(f.DeclList, p.constDecl)<br><br>		<span class="hljs-keyword">case</span> <span class="hljs-variable">_Type</span>:     <span class="hljs-comment">// 解析 Type，传入了函数 typeDecl()</span><br>			p.next()<br>			f.DeclList = p.appendGroup(f.DeclList, p.typeDecl)<br><br>		<span class="hljs-keyword">case</span> <span class="hljs-variable">_Var</span>:      <span class="hljs-comment">// 解析 Var，传入了函数 varDecl()</span><br>			p.next()<br>			f.DeclList = p.appendGroup(f.DeclList, p.varDecl)<br><br>		<span class="hljs-keyword">case</span> <span class="hljs-variable">_Func</span>:     <span class="hljs-comment">// 解析 Func，p.funcDeclOrNil() 用来解析函数</span><br>			p.next()<br>			<span class="hljs-keyword">if</span> d := p.funcDeclOrNil(); d != <span class="hljs-literal">nil</span> &#123;<br>				f.DeclList = <span class="hljs-built_in">append</span>(f.DeclList, d)<br>			&#125;<br><br>		<span class="hljs-keyword">default</span>:    <span class="hljs-comment">// 处理其余 Case</span><br>			<span class="hljs-keyword">if</span> p.tok == <span class="hljs-variable">_Lbrace</span> &amp;&amp; len(f.DeclList) &gt; <span class="hljs-number">0</span> &amp;&amp; isEmptyFuncDecl(f.DeclList[len(f.DeclList)-<span class="hljs-number">1</span>]) &#123;<br>				<span class="hljs-comment">// opening &#123; of function declaration on next line</span><br>				p.syntaxError(<span class="hljs-string">&quot;unexpected semicolon or newline before &#123;&quot;</span>)<br>			&#125; <span class="hljs-keyword">else</span> &#123;<br>				p.syntaxError(<span class="hljs-string">&quot;non-declaration statement outside function body&quot;</span>)<br>			&#125;<br>			p.advance(<span class="hljs-variable">_Const</span>, <span class="hljs-variable">_Type</span>, <span class="hljs-variable">_Var</span>, <span class="hljs-variable">_Func</span>)<br>			continue<br>		&#125;<br><br>		<span class="hljs-comment">// Reset p.pragma BEFORE advancing to the next token (consuming &#x27;;&#x27;)</span><br>		<span class="hljs-comment">// since comments before may set pragmas for the next function decl.</span><br>		p.clearPragma()<br>        <span class="hljs-comment">// 异常处理</span><br>		<span class="hljs-keyword">if</span> p.tok != <span class="hljs-variable">_EOF</span> &amp;&amp; !p.got(<span class="hljs-variable">_Semi</span>) &#123;<br>			p.syntaxError(<span class="hljs-string">&quot;after top level declaration&quot;</span>)<br>			p.advance(<span class="hljs-variable">_Const</span>, <span class="hljs-variable">_Type</span>, <span class="hljs-variable">_Var</span>, <span class="hljs-variable">_Func</span>)<br>		&#125;<br>	&#125;<br>	<span class="hljs-comment">// p.tok == _EOF</span><br><br>	p.clearPragma()<br>	f.Lines = p.line<br>    <br>    <span class="hljs-comment">// 4. 返回 syntax.File 解析完成的源文件</span><br>	return f<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="syntaxparserappengroup-处理批量定义">syntax.parser.appenGroup() 处理批量定义</span></h4><p>用于解析 import、const、var、type等声明：<br>eg:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">var</span> (<br>    a <span class="hljs-keyword">int</span><br>    b <span class="hljs-keyword">int</span><br>)<br><br><span class="hljs-keyword">const</span> (<br>    c := <span class="hljs-number">1</span><br>    d := <span class="hljs-number">2</span><br>)<br></code></pre></td></tr></table></figure>
+
+<p>顶层定义的结构体，如：importDecl、constDecl、typeDecl、varDecl 都是通过 appendGroup() 进行解析，在进行语法分析时，需要传入额外的参数 group *Group：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// ConstSpec = IdentifierList [ [ Type ] &quot;=&quot; ExpressionList ] .</span><br>func (<span class="hljs-selector-tag">p</span> *parser) constDecl(group *Group) Decl &#123;<br>	<span class="hljs-keyword">if</span> trace &#123;<br>		defer <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.trace</span>(<span class="hljs-string">&quot;constDecl&quot;</span>)()<br>	&#125;<br><br>	d := new(ConstDecl)<br>	d<span class="hljs-selector-class">.pos</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.pos</span>()<br>	d<span class="hljs-selector-class">.Group</span> = group<br>	d<span class="hljs-selector-class">.Pragma</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.takePragma</span>()<br><br>	d<span class="hljs-selector-class">.NameList</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.nameList</span>(<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.name</span>())<br>	<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.tok</span> != _EOF &amp;&amp; <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.tok</span> != _Semi &amp;&amp; <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.tok</span> != _Rparen &#123;<br>		d<span class="hljs-selector-class">.Type</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.typeOrNil</span>()<br>		<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.gotAssign</span>() &#123;<br>			d<span class="hljs-selector-class">.Values</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.exprList</span>()<br>		&#125;<br>	&#125;<br><br>	return d<br>&#125;<br><br><span class="hljs-comment">// VarSpec = IdentifierList ( Type [ &quot;=&quot; ExpressionList ] | &quot;=&quot; ExpressionList ) .</span><br>func (<span class="hljs-selector-tag">p</span> *parser) varDecl(group *Group) Decl &#123;<br>	<span class="hljs-keyword">if</span> trace &#123;<br>		defer <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.trace</span>(<span class="hljs-string">&quot;varDecl&quot;</span>)()<br>	&#125;<br><br>	d := new(VarDecl)<br>	d<span class="hljs-selector-class">.pos</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.pos</span>()<br>	d<span class="hljs-selector-class">.Group</span> = group<br>	d<span class="hljs-selector-class">.Pragma</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.takePragma</span>()<br><br>	d<span class="hljs-selector-class">.NameList</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.nameList</span>(<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.name</span>())<br>	<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.gotAssign</span>() &#123;<br>		d<span class="hljs-selector-class">.Values</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.exprList</span>()<br>	&#125; <span class="hljs-keyword">else</span> &#123;<br>		d<span class="hljs-selector-class">.Type</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.type_</span>()<br>		<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.gotAssign</span>() &#123;<br>			d<span class="hljs-selector-class">.Values</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.exprList</span>()<br>		&#125;<br>	&#125;<br><br>	return d<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Group 定义为：实际上只包含了 dummy 这一个值</p>
+<figure class="highlight crmsh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs crmsh">// All declarations belonging to the same <span class="hljs-keyword">group</span> <span class="hljs-title">point</span> to the same <span class="hljs-keyword">Group</span> <span class="hljs-title">node</span>.<br><span class="hljs-keyword">type</span> <span class="hljs-keyword">Group</span> <span class="hljs-title">struct</span> &#123;<br>	dummy int // not empty so we are guaranteed different <span class="hljs-keyword">Group</span> <span class="hljs-title">instances</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>syntax.parser.appenGroup() 具体实现为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// appendGroup(f) = f | &quot;(&quot; &#123; f &quot;;&quot; &#125; &quot;)&quot; . // &quot;;&quot; is optional before &quot;)&quot;</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(p *parser)</span> <span class="hljs-title">appendGroup</span><span class="hljs-params">(list []Decl, f <span class="hljs-keyword">func</span>(*Group)</span> <span class="hljs-title">Decl</span>) []<span class="hljs-title">Decl</span></span> &#123;<br>	<span class="hljs-keyword">if</span> p.tok == _Lparen &#123;<br>		g := <span class="hljs-built_in">new</span>(Group)<br>		p.list(_Lparen, _Semi, _Rparen, <span class="hljs-function"><span class="hljs-keyword">func</span><span class="hljs-params">()</span> <span class="hljs-title">bool</span></span> &#123;<br>			list = <span class="hljs-built_in">append</span>(list, f(g))<br>			<span class="hljs-keyword">return</span> <span class="hljs-literal">false</span><br>		&#125;)<br>	&#125; <span class="hljs-keyword">else</span> &#123;<br>		list = <span class="hljs-built_in">append</span>(list, f(<span class="hljs-literal">nil</span>))<br>	&#125;<br><br>	<span class="hljs-keyword">if</span> debug &#123;<br>		<span class="hljs-keyword">for</span> _, d := <span class="hljs-keyword">range</span> list &#123;<br>			<span class="hljs-keyword">if</span> d == <span class="hljs-literal">nil</span> &#123;<br>				<span class="hljs-built_in">panic</span>(<span class="hljs-string">&quot;nil list entry&quot;</span>)<br>			&#125;<br>		&#125;<br>	&#125;<br><br>	<span class="hljs-keyword">return</span> list<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>appendGroup() 调用传入的方法 f() 对输入流进行匹配，并将匹配的结果保存到 DeclList 数组中。</p>
+<p>参见 <strong>syntax.fileOrNil()</strong> 方法中，输入流中的 Token 匹配为 import, var, const, type 时，会调用 appendGroup() 同时传入具体的 importDecl(), constDecl(), typeDecl(), varDecl() 进行解析。</p>
+<h4><span id="syntaxparserfuncdeclornil-处理-函数声明">syntax.parser.funcDeclOrNil() 处理 函数声明</span></h4><p>对于函数这种较为特殊的声明， <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/parser.go#L621">syntax.parser.funcDeclOrNil()</a> 做了单独的实现</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs less"><span class="hljs-selector-tag">1</span>. 初始化 <span class="hljs-selector-tag">funcDecl</span> 函数声明结构体<br><span class="hljs-selector-tag">2</span>. 匹配 <span class="hljs-selector-tag">func</span> 后的 () 中的内容 <span class="hljs-selector-tag">-</span>&gt; 函数调用者，分别对 <span class="hljs-selector-tag">1</span>, <span class="hljs-selector-tag">2</span>, &gt;<span class="hljs-selector-tag">2</span> 的情况做了处理<br><span class="hljs-selector-tag">3</span>. 获取函数名称 <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.name</span>()<br><span class="hljs-selector-tag">4</span>. 匹配 () 内，各参数，() 外的函数返回值<br><span class="hljs-selector-tag">5</span>. 匹配 &#123;&#125; 函数体 <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.funcBody</span>()<br></code></pre></td></tr></table></figure>
+
+<p>源码实现为：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// FunctionDecl = &quot;func&quot; FunctionName ( Function | Signature ) .</span><br><span class="hljs-comment">// FunctionName = identifier .</span><br><span class="hljs-comment">// Function     = Signature FunctionBody .</span><br><span class="hljs-comment">// MethodDecl   = &quot;func&quot; Receiver MethodName ( Function | Signature ) .</span><br><span class="hljs-comment">// Receiver     = Parameters .</span><br>func (<span class="hljs-selector-tag">p</span> *parser) funcDeclOrNil() *FuncDecl &#123;<br>	<span class="hljs-keyword">if</span> trace &#123;<br>		defer <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.trace</span>(<span class="hljs-string">&quot;funcDecl&quot;</span>)()<br>	&#125;<br>    <span class="hljs-comment">// 1. 初始化 funcDecl</span><br>	f := new(FuncDecl)<br>	f<span class="hljs-selector-class">.pos</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.pos</span>()<br>	f<span class="hljs-selector-class">.Pragma</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.takePragma</span>()<br>    <br>    <span class="hljs-comment">// 2. 匹配函数调用者</span><br>	<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.got</span>(_Lparen) &#123;<br>		rcvr := <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.paramList</span>(nil, _Rparen, false)<br>		switch len(rcvr) &#123;<br>		case <span class="hljs-number">0</span>:<br>			<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.error</span>(<span class="hljs-string">&quot;method has no receiver&quot;</span>)<br>		default:<br>			<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.error</span>(<span class="hljs-string">&quot;method has multiple receivers&quot;</span>)<br>			fallthrough<br>		case <span class="hljs-number">1</span>:<br>			f<span class="hljs-selector-class">.Recv</span> = rcvr<span class="hljs-selector-attr">[0]</span><br>		&#125;<br>	&#125;<br>    <br>	<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.tok</span> != _Name &#123;<br>		<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.syntaxError</span>(<span class="hljs-string">&quot;expecting name or (&quot;</span>)<br>		<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.advance</span>(_Lbrace, _Semi)<br>		return nil<br>	&#125;<br>    <span class="hljs-comment">// 3. 获取函数名称</span><br>	f<span class="hljs-selector-class">.Name</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.name</span>()<br>	<span class="hljs-comment">// 4. 匹配 参数 &amp; 返回值</span><br>	f<span class="hljs-selector-class">.TParamList</span>, f<span class="hljs-selector-class">.Type</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.funcType</span>(<span class="hljs-string">&quot;&quot;</span>)<br>	<span class="hljs-comment">// 5. 匹配 函数体</span><br>	<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.tok</span> == _Lbrace &#123;<br>		f<span class="hljs-selector-class">.Body</span> = <span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.funcBody</span>()<br>	&#125;<br>    <br>	return f<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="词法解析器-scanner-的使用">词法解析器 scanner 的使用</span></h4><p>词法解析器 scanner 嵌入在 parser 中，通过 p.next() 的方式进行了调用，详见:<br><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/cmd/compile/internal/syntax/parser.go#L181">src/cmd/compile/internal/syntax.parser.got()</a> </p>
+<figure class="highlight autoit"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs autoit"><span class="hljs-meta"># p.got()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(p *parser)</span> <span class="hljs-title">got</span><span class="hljs-params">(tok token)</span> <span class="hljs-title">bool</span> &#123;</span><br>	<span class="hljs-keyword">if</span> p.tok == tok &#123;<br>	    // 此处实际使用的是 scanner.<span class="hljs-keyword">next</span>()、scanner.nextch()<br>		p.<span class="hljs-keyword">next</span>()<br>		<span class="hljs-keyword">return</span> <span class="hljs-literal">true</span><br>	&#125;<br>	<span class="hljs-keyword">return</span> <span class="hljs-literal">false</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>此外， parser 还提供了对 parser.got() 的封装 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/4d5bb9c60905b162da8b767a8a133f6b4edcaa65/src/cmd/compile/internal/syntax/parser.go#L166">cmd/compile/internal/syntax.parser.want()</a> 用于快速判断下一个 Token 是否是我们想要的 Token：</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs less"># <span class="hljs-selector-tag">want</span>()<br><span class="hljs-selector-tag">func</span> (p *parser) <span class="hljs-selector-tag">want</span>(tok token) &#123;<br>	<span class="hljs-selector-tag">if</span> !<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.got</span>(tok) &#123;<br>		<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.syntaxError</span>(<span class="hljs-string">&quot;expecting &quot;</span> + tokstring(tok))<br>		<span class="hljs-selector-tag">p</span><span class="hljs-selector-class">.advance</span>()<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="srccmdcompileinternalsyntaxnodesgo-中相关结构体定义">src/cmd/compile/internal/syntax/nodes.go 中相关结构体定义</span></h4><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/master/src/cmd/compile/internal/syntax/nodes.go">src/cmd/compile/internal/syntax/nodes.go</a> 包含了 parser 中使用到的各结构体的定义</p>
+<p>parser.fileOrNil() 在完成对源文件的解析后，返回 syntax.File 结构体</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> package PkgName; DeclList[<span class="hljs-number">0</span>], DeclList[<span class="hljs-number">1</span>], ...<br>type File struct &#123;<br>	Pragma   Pragma<br>	PkgName  *Name  <span class="hljs-regexp">//</span> 包名<br>	DeclList []Decl <span class="hljs-regexp">//</span> 声明结构的列表<br>	Lines    uint   <span class="hljs-regexp">//</span> 源文件代码行数<br>	node            <span class="hljs-regexp">//</span> 内嵌 node 结构体<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>其他的声明定义，如 函数声明 FuncDecl:</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> match case 匹配情况<br><span class="hljs-regexp">//</span> <span class="hljs-keyword">func</span>          Name Type &#123; Body &#125;<br><span class="hljs-regexp">//</span> <span class="hljs-keyword">func</span>          Name Type<br><span class="hljs-regexp">//</span> <span class="hljs-keyword">func</span> Receiver Name Type &#123; Body &#125;<br><span class="hljs-regexp">//</span> <span class="hljs-keyword">func</span> Receiver Name Type<br>type FuncDecl struct &#123;<br>	Pragma     Pragma<br>	Recv       *Field       <span class="hljs-regexp">//</span> 函数接收者<br>	Name       *Name        <span class="hljs-regexp">//</span> 函数名称<br>	TParamList []*Field     <span class="hljs-regexp">//</span> 参数<br>	Type       *FuncType    <span class="hljs-regexp">//</span> 函数类型<br>	Body       *BlockStmt   <span class="hljs-regexp">//</span> 函数体<br>	decl                    <span class="hljs-regexp">//</span> 内嵌 decl 结构体<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>函数体 BlockStmt 由一系列的 Stmt 表达式组成</p>
+<figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs armasm"><span class="hljs-symbol">BlockStmt</span> struct &#123;<br>    <span class="hljs-comment">// 表达式列表</span><br>	List   []<span class="hljs-keyword">Stmt</span><br>	Rbrace Pos<br>	<span class="hljs-keyword">stmt</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Stmt 实际是一个 接口，共有 14 种不同类型的 Stmt 实现，如：EmptyStmt、BlockStmt、DeclStmt 等</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs elm">// interface <span class="hljs-type">Stmt</span><br><span class="hljs-keyword">type</span> <span class="hljs-type">Stmt</span> interface &#123;<br>	<span class="hljs-type">Node</span><br>	aStmt()<br>&#125;<br><br>// <span class="hljs-type">BlockStmt</span><br><span class="hljs-keyword">type</span> <span class="hljs-type">BlockStmt</span> struct &#123;<br>	<span class="hljs-type">List</span>   []<span class="hljs-type">Stmt</span><br>	<span class="hljs-type">Rbrace</span> <span class="hljs-type">Pos</span><br>	stmt<br>&#125;<br><br>// <span class="hljs-type">AssignStmt</span><br><span class="hljs-keyword">type</span> <span class="hljs-type">AssignStmt</span> struct &#123;<br>	<span class="hljs-type">Op</span>       <span class="hljs-type">Operator</span> // 0 means no operation<br>	<span class="hljs-type">Lhs</span>, <span class="hljs-type">Rhs</span> <span class="hljs-type">Expr</span>     // <span class="hljs-type">Rhs</span> == <span class="hljs-type">ImplicitOne</span> means <span class="hljs-type">Lhs</span>++ (<span class="hljs-type">Op</span> == <span class="hljs-type">Add</span>) or <span class="hljs-type">Lhs</span><span class="hljs-comment">-- (Op == Sub)</span><br>	simpleStmt<br>&#125;<br></code></pre></td></tr></table></figure>
+
+
+<h3><span id="conclusion">Conclusion</span></h3><ol>
+<li>Golang 基于 LALR(1) 思想，对语法分析器进行了实现</li>
+<li>词法分析器 scanner 嵌入到了 parser 中，通过 got(), want() 被 parser 调用</li>
+<li>知识点串起来了</li>
+<li>抽象 -&gt; 具体</li>
+<li>具体 -&gt; 抽象</li>
+</ol>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-3-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%B1%BB%E5%9E%8B%E6%A3%80%E6%9F%A5/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">2.3 编译原理 -- 类型检查</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%8D%E6%B3%95%E5%88%86%E6%9E%90/">
+                        <span class="hidden-mobile">2.2 编译原理 -- 词法分析</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>
