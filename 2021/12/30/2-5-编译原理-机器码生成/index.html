@@ -1,0 +1,599 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="2.5 机器码生成golang compile 的最后一个阶段是根据 SSA中间代码 生成 机器码 机器码：目标 CPU 架构上能够运行的二进制代码 SSA 中间代码生成，多轮转换 49个步骤中， lower 后的一些步骤实际上是属于 机器码生成 阶段的 机器码生成 -&gt; 对 SSA 中间代码的降级过程，在这一过程中，编译器将一些值重写成了目标CPU架构的特定值，降级的过程处理了所有机器特定">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2.5 编译原理 -- 机器码生成">
+<meta property="og:url" content="http://example.com/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="2.5 机器码生成golang compile 的最后一个阶段是根据 SSA中间代码 生成 机器码 机器码：目标 CPU 架构上能够运行的二进制代码 SSA 中间代码生成，多轮转换 49个步骤中， lower 后的一些步骤实际上是属于 机器码生成 阶段的 机器码生成 -&gt; 对 SSA 中间代码的降级过程，在这一过程中，编译器将一些值重写成了目标CPU架构的特定值，降级的过程处理了所有机器特定">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/go_compile_ssa_lower.png">
+<meta property="og:image" content="https://note.youdao.com/yws/api/group/102464226/file/926113561?method=download&inline=true&version=1&shareToken=58642610D21F41E4A13DBA8FA10B016A">
+<meta property="article:published_time" content="2021-12-30T15:31:20.000Z">
+<meta property="article:modified_time" content="2021-12-30T15:34:03.046Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/go_compile_ssa_lower.png">
+  
+  
+  <title>2.5 编译原理 -- 机器码生成 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="2.5 编译原理 -- 机器码生成">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-30 23:31" pubdate>
+        2021年12月30日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      7.1k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      60 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">2.5 编译原理 -- 机器码生成</h1>
+            
+            <div class="markdown-body">
+              <h2><span id="25-机器码生成">2.5 机器码生成</span></h2><p>golang compile 的最后一个阶段是根据 SSA中间代码 生成 机器码</p>
+<p>机器码：目标 CPU 架构上能够运行的二进制代码</p>
+<p>SSA 中间代码生成，多轮转换 49个步骤中， lower 后的一些步骤实际上是属于 机器码生成 阶段的</p>
+<p>机器码生成 -&gt; 对 SSA 中间代码的降级过程，在这一过程中，编译器将一些值重写成了目标CPU架构的特定值，降级的过程处理了所有机器特定的重写规则 并对代码进行了一定程度的优化。</p>
+<p>在 SSA 中间代码生成阶段的最后 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/41d8e61a6b9d8f9db912626eb2bbc535e929fefc/src/cmd/compile/internal/gc/ssa.go#L6296">src/cmd/compile/internal/gc/ssa.genssa()</a> 函数中，Go 函数体的代码，实际上被转换为了  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/internal/obj/link.go#L284">src/cmd/compile/internal/obj.Prog</a></p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> struct Prog<br>type Prog struct &#123;<br>	Ctxt     *Link     <span class="hljs-regexp">//</span> linker context<br>	Link     *Prog     <span class="hljs-regexp">//</span> <span class="hljs-keyword">next</span> Prog <span class="hljs-keyword">in</span> linked list<br>	From     Addr      <span class="hljs-regexp">//</span> first source operand<br>	RestArgs []AddrPos <span class="hljs-regexp">//</span> can pack any operands that not fit into &#123;Prog.From, Prog.To&#125;<br>	To       Addr      <span class="hljs-regexp">//</span> destination operand (second is RegTo2 below)<br>	Pool     *Prog     <span class="hljs-regexp">//</span> constant pool entry, <span class="hljs-keyword">for</span> arm,arm64 back ends<br>	Forwd    *Prog     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86 back end<br>	Rel      *Prog     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86, arm back ends<br>	Pc       int64     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> back ends or assembler: virtual or actual program counter, depending on phase<br>	Pos      src.XPos  <span class="hljs-regexp">//</span> source position of this instruction<br>	Spadj    int32     <span class="hljs-regexp">//</span> effect of instruction on stack pointer (increment or decrement amount)<br>	As       As        <span class="hljs-regexp">//</span> assembler opcode<br>	Reg      int16     <span class="hljs-regexp">//</span> <span class="hljs-number">2</span>nd source operand<br>	RegTo2   int16     <span class="hljs-regexp">//</span> <span class="hljs-number">2</span>nd destination operand<br>	Mark     uint16    <span class="hljs-regexp">//</span> bitmask of arch-specific items<br>	Optab    uint16    <span class="hljs-regexp">//</span> arch-specific opcode index<br>	Scond    uint8     <span class="hljs-regexp">//</span> bits that describe instruction suffixes (e.g. ARM conditions)<br>	Back     uint8     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86 back end: backwards branch state<br>	Ft       uint8     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86 back end: type index of Prog.From<br>	Tt       uint8     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86 back end: type index of Prog.To<br>	Isize    uint8     <span class="hljs-regexp">//</span> <span class="hljs-keyword">for</span> x86 back end: size of the instruction <span class="hljs-keyword">in</span> bytes<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="251-指令集架构">2.5.1 指令集架构</span></h3><p>指令集架构<br>-&gt; 计算机的抽象模型<br>-&gt; 计算机软件 和 硬件之间的接口和桥梁</p>
+<p>每一个指令集架构都定义了支持的数据结构、寄存器、管理内存的硬件支持、支持的指令集、IO 模型。</p>
+<p>可以将其看做是软件 和 硬件之间的抽象层，能够让同一个二进制文件在不同版本的硬件上运行</p>
+<h3><span id="252-golang-实现">2.5.2 golang 实现</span></h3><p>golang 对 机器码生成的实现包括了两部分：</p>
+<ol>
+<li>src/cmd/internal/ssa 中，对 SSA 中间代码进行降级; 针对目标架构进行优化和重写；生成 src/cmd/compile/internal/obj.Prog 指令</li>
+<li>src/cmd/internal/obj 中，作为汇编器(Assembler) 角色 将 SSA 中间代码 转换为 机器码</li>
+</ol>
+<h4><span id="降级-ssa-lower">降级 SSA Lower</span></h4><p>SSA Lower 实际是在 中间代码生成的 49 轮 处理中完成的，lower 及以后的阶段都属于这一过程：</p>
+<figure class="highlight sqf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs sqf">var passes = [...]pass&#123;<br>	...<br>    &#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;lower&quot;</span>, fn: lower, required: <span class="hljs-literal">true</span>&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;lowered deadcode for cse&quot;</span>, fn: deadcode&#125;, <span class="hljs-comment">// deadcode immediately before CSE avoids CSE making dead values live again</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;lowered cse&quot;</span>, fn: cse&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;elim unread autos&quot;</span>, fn: elimUnreadAutos&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;lowered deadcode&quot;</span>, fn: deadcode, required: <span class="hljs-literal">true</span>&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;checkLower&quot;</span>, fn: checkLower, required: <span class="hljs-literal">true</span>&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;late phielim&quot;</span>, fn: phielim&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;late copyelim&quot;</span>, fn: copyelim&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;tighten&quot;</span>, fn: tighten&#125;, <span class="hljs-comment">// move values closer to their uses</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;late deadcode&quot;</span>, fn: deadcode&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;critical&quot;</span>, fn: critical, required: <span class="hljs-literal">true</span>&#125;, <span class="hljs-comment">// remove critical edges</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;phi tighten&quot;</span>, fn: phiTighten&#125;,            <span class="hljs-comment">// place rematerializable phi args near uses to reduce value lifetimes</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;likelyadjust&quot;</span>, fn: likelyadjust&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;layout&quot;</span>, fn: layout, required: <span class="hljs-literal">true</span>&#125;,     <span class="hljs-comment">// schedule blocks</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;schedule&quot;</span>, fn: schedule, required: <span class="hljs-literal">true</span>&#125;, <span class="hljs-comment">// schedule values</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;late nilcheck&quot;</span>, fn: nilcheckelim2&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;flagalloc&quot;</span>, fn: flagalloc, required: <span class="hljs-literal">true</span>&#125;, <span class="hljs-comment">// allocate flags register</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;regalloc&quot;</span>, fn: regalloc, required: <span class="hljs-literal">true</span>&#125;,   <span class="hljs-comment">// allocate int &amp; float registers + stack slots</span><br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;loop rotate&quot;</span>, fn: loopRotate&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;stackframe&quot;</span>, fn: stackframe, required: <span class="hljs-literal">true</span>&#125;,<br>	&#123;<span class="hljs-built_in">name</span>: <span class="hljs-string">&quot;trim&quot;</span>, fn: trim&#125;, <span class="hljs-comment">// remove empty blocks</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>以 hello.go 为例，对应到 ssa.html 中的步骤：</p>
+<img src="/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/go_compile_ssa_lower.png" srcset="/img/loading.gif" lazyload class title="ssa中间代码生成期间的 lower 过程">
+
+<p><img src="https://note.youdao.com/yws/api/group/102464226/file/926113561?method=download&inline=true&version=1&shareToken=58642610D21F41E4A13DBA8FA10B016A" srcset="/img/loading.gif" lazyload alt="image"></p>
+<p>由于过程较多（20步），只对第一个阶段 lower 进行分析，lower 阶段的入口方法是： <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/ssa/lower.go#L8">cmd/compile/internal/ssa.lower()</a></p>
+<ol>
+<li>applyRewrite() 将 SSA中间代码转换成机器特定的指令</li>
+<li>lowerBlock() 以及 lowerValue() 分别转换函数的中的代码块 和 代码块中的值</li>
+</ol>
+<p>applyRewrite() 的实际实现，对应到 <a target="_blank" rel="noopener" href="https://github.com/golang/go/tree/c170b14c2c1cfb2fd853a37add92a82fd6eb4318/src/cmd/compile/internal/ssa">src/cmd/compile/internal/ssa</a> 包 rewrite_架构.go; rewriteblock-架构(); rewritevalue-架构() 中</p>
+<p>如：rewriteAMD64.go -&gt; 转换为 AMD64 架构</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs reasonml"><span class="hljs-comment">// ssa.lower()</span><br><span class="hljs-comment">// convert to machine-dependent ops</span><br>func lower(f *Func) &#123;<br>	<span class="hljs-comment">// repeat rewrites until we find no more rewrites</span><br>	apply<span class="hljs-constructor">Rewrite(<span class="hljs-params">f</span>, <span class="hljs-params">f</span>.Config.<span class="hljs-params">lowerBlock</span>, <span class="hljs-params">f</span>.Config.<span class="hljs-params">lowerValue</span>, <span class="hljs-params">removeDeadValues</span>)</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>以 x86 架构为例，实际调用到的是： <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/c170b14c2c1cfb2fd853a37add92a82fd6eb4318/src/cmd/compile/internal/ssa/rewrite386.go#L21977">src/cmd/compile/internal/ssa.rewriteBlock386()</a> 以及 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/c170b14c2c1cfb2fd853a37add92a82fd6eb4318/src/cmd/compile/internal/ssa/rewrite386.go#L9">src/cmd/compile/internal/ssa.rewriteBlock386()</a>；通过巨型的 switch - case 语句 将 通用的 SSA 中间代码转换成 x86 架构特定的指令。</p>
+<p>如：使用 ADCLconst 替换 ADCL 和 MOVLonst 两条指令</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// ssa.rewriteValue386()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">rewriteValue386</span><span class="hljs-params">(v *Value)</span> <span class="hljs-title">bool</span></span> &#123;<br>	<span class="hljs-keyword">switch</span> v.Op &#123;<br>	<span class="hljs-keyword">case</span> Op386ADCL:<br>		<span class="hljs-keyword">return</span> rewriteValue386_Op386ADCL_0(v)<br>	<span class="hljs-keyword">case</span> Op386ADDL:<br>		<span class="hljs-keyword">return</span> rewriteValue386_Op386ADDL_0(v) || rewriteValue386_Op386ADDL_10(v) || rewriteValue386_Op386ADDL_20(v)<br>	...<br>	&#125;<br>&#125;<br><br><span class="hljs-comment">// ssa.rewriteBlock386()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">rewriteValue386_Op386ADCL_0</span><span class="hljs-params">(v *Value)</span> <span class="hljs-title">bool</span></span> &#123;<br>    <span class="hljs-comment">// 此处完成命令替换</span><br>	<span class="hljs-comment">// match: (ADCL x (MOVLconst [c]) f)</span><br>	<span class="hljs-comment">// cond:</span><br>	<span class="hljs-comment">// result: (ADCLconst [c] x f)</span><br>	<span class="hljs-keyword">for</span> &#123;<br>		_ = v.Args[<span class="hljs-number">2</span>]<br>		x := v.Args[<span class="hljs-number">0</span>]<br>		v_1 := v.Args[<span class="hljs-number">1</span>]<br>		<span class="hljs-keyword">if</span> v_1.Op != Op386MOVLconst &#123;<br>			<span class="hljs-keyword">break</span><br>		&#125;<br>		c := v_1.AuxInt<br>		f := v.Args[<span class="hljs-number">2</span>]<br>		v.reset(Op386ADCLconst)<br>		v.AuxInt = c<br>		v.AddArg(x)<br>		v.AddArg(f)<br>		<span class="hljs-keyword">return</span> <span class="hljs-literal">true</span><br>	&#125;<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>lower() 等相关步骤实际运行在 gc.buildSSA() 中，在 gc.compileSSA() 中，后续的调用为：</p>
+<ol>
+<li>genssa() 将中间代码保存在 Progs 结构体</li>
+<li><a href="cmd/compile/internal/gc.Progs.Flush">pp.flush()</a> 使用 <a href="cmd/internal/obj">src/cmd/internal/obj</a> 包中的汇编器 Assembler 将优化后的 SSA 中间代码转换成 汇编代码</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">compileSSA</span><span class="hljs-params">(fn *Node, worker <span class="hljs-keyword">int</span>)</span></span> &#123;<br>    <span class="hljs-comment">// ssa lower</span><br>	f := buildssa(fn, worker)<br>	<br>	......<br>	<br>	<span class="hljs-comment">// 1. 初始化 Progs 结构体</span><br>	pp := newProgs(fn, worker)<br>	<span class="hljs-keyword">defer</span> pp.Free()<br>	<span class="hljs-comment">// 1. 将 SSA 中间代码 存入 pp 中</span><br>	genssa(f, pp)<br>    <br>    <span class="hljs-comment">// 2. SSA 中间代码 -&gt; 汇编代码</span><br>	pp.Flush()<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>经过 SSA 降级的代码，在形式上和汇编代码非常相似，<strong>genssa()</strong> 中生成的就是经过 优化后的 SSA 中间代码。以 hello.go 最后生成的 ssa 中间代码为例：</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-comment"># /root/ssa_test/hello.go</span><br>        <span class="hljs-attribute">00000</span> (<span class="hljs-number">3</span>) TEXT <span class="hljs-string">&quot;&quot;</span>.hello(SB), ABIInternal<br>        <span class="hljs-attribute">00001</span> (<span class="hljs-number">3</span>) FUNCDATA $<span class="hljs-number">0</span>, gclocals·<span class="hljs-number">33</span>cdeccccebe<span class="hljs-number">80329</span>f<span class="hljs-number">1</span>fdbee<span class="hljs-number">7</span>f<span class="hljs-number">5874</span>cb(SB)<br>        <span class="hljs-attribute">00002</span> (<span class="hljs-number">3</span>) FUNCDATA $<span class="hljs-number">1</span>, gclocals·<span class="hljs-number">33</span>cdeccccebe<span class="hljs-number">80329</span>f<span class="hljs-number">1</span>fdbee<span class="hljs-number">7</span>f<span class="hljs-number">5874</span>cb(SB)<br>        <span class="hljs-attribute">00003</span> (<span class="hljs-number">3</span>) FUNCDATA $<span class="hljs-number">5</span>, <span class="hljs-string">&quot;&quot;</span>.hello.arginfo<span class="hljs-number">1</span>(SB)<br><span class="hljs-attribute">v10</span>     <span class="hljs-number">00004</span> (+<span class="hljs-number">4</span>) ADDQ $<span class="hljs-number">2</span>, AX<br><span class="hljs-attribute">b1</span>      <span class="hljs-number">00005</span> (+<span class="hljs-number">5</span>) RET<br>        <span class="hljs-attribute">00006</span> (?) END<br></code></pre></td></tr></table></figure>
+
+<p>gc.Progs.Flush() 函数源码：</p>
+<figure class="highlight roboconf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs roboconf">func (pp *Progs) Flush() &#123;<br>	<span class="hljs-attribute">plist</span> := &amp;obj<span class="hljs-variable">.Plist</span>&#123;Firstpc: pp<span class="hljs-variable">.Text</span>, Curfn: pp<span class="hljs-variable">.curfn</span>&#125;<br>	// 调用 obj<span class="hljs-variable">.Flushlist</span>() 对 SSA 中间代码 进行 逐行转换<br>	obj<span class="hljs-variable">.Flushplist</span>(Ctxt, plist, pp<span class="hljs-variable">.NewProg</span>, myimportpath)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="汇编器-assembler">汇编器 Assembler</span></h4><p>汇编器：将汇编语言翻译为机器语言的程序</p>
+<p>golang 的汇编器是基于 Plan 9 汇编器的输入类型设计的，且网上对汇编语言 Plan9 以及 汇编器的资料 简直是凤毛麟角。</p>
+<p>所以，很难去分析 golang 汇编器的实现。</p>
+<p>汇编代码是由 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/b2482e481722357c6daa98ef074d8eaf8ac4baf3/src/cmd/internal/obj/plist.go#L22">src/cmd/internal/obj.Flushplist</a> 这个函数生成的。</p>
+<ol>
+<li>分析目标架构类型</li>
+<li>调用目标架构特定的 Preprocess 和 Assemble 方法</li>
+</ol>
+<figure class="highlight haxe"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs haxe">func Flushplist(ctxt *Link, plist *Plist, <span class="hljs-keyword">new</span><span class="hljs-type">prog</span> ProgAlloc, myimportpath string) &#123;<br>	......<br><br>    <span class="hljs-comment">// 转换为 机器码</span><br>	<span class="hljs-comment">// Turn functions into machine code images.</span><br>	<span class="hljs-keyword">for</span> <span class="hljs-literal">_</span>, s :<span class="hljs-type"></span>= range text &#123;<br>		mkfwd(s)<br>		linkpatch(ctxt, s, <span class="hljs-keyword">new</span><span class="hljs-type">prog</span>)<br>		<span class="hljs-comment">// 调用 对应架构的 Preprocess()</span><br>		ctxt.Arch.Preprocess(ctxt, s, <span class="hljs-keyword">new</span><span class="hljs-type">prog</span>)<br>		<span class="hljs-comment">// 调用 对应架构的 Assemble()</span><br>		ctxt.Arch.Assemble(ctxt, s, <span class="hljs-keyword">new</span><span class="hljs-type">prog</span>)<br>		<span class="hljs-keyword">if</span> ctxt.Errors &gt; <span class="hljs-number">0</span> &#123;<br>			<span class="hljs-keyword">continue</span><br>		&#125;<br>		linkpcln(ctxt, s)<br>		ctxt.populateDWARF(plist.Curfn, s, myimportpath)<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>此处的源码位于： <a target="_blank" rel="noopener" href="https://github.com/golang/go/tree/498eaee461adefd5e578e62c134382ece94198da/src/cmd/internal/obj">src/cmd/internal/obj</a></p>
+<figure class="highlight xl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xl"><span class="hljs-function"><span class="hljs-title">x86</span> 架构 -&gt;</span> /x86<br><span class="hljs-function"><span class="hljs-title">arm</span> 架构 -&gt;</span> /arm<br></code></pre></td></tr></table></figure>
+
+
+<p>以 x86 架构为例，最终调用的是 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/b2482e481722357c6daa98ef074d8eaf8ac4baf3/src/cmd/internal/obj/x86/obj6.go#L565">cmd/internal/obj/x86.preprocess()</a> 以及 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/498eaee461adefd5e578e62c134382ece94198da/src/cmd/internal/obj/x86/asm6.go#L1848">cmd/internal/obj/x86.span6()</a>。</p>
+<p>以 hello.go 为例，最后生成的汇编指令为：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// 编译指令</span><br>GOOS=linux GOARCH=amd64 go tool compile -S hello<span class="hljs-selector-class">.go</span><br><br><span class="hljs-comment">// 汇编代码</span><br><span class="hljs-string">&quot;&quot;</span><span class="hljs-selector-class">.hello</span> STEXT nosplit size=<span class="hljs-number">15</span> args=<span class="hljs-number">0</span>x10 locals=<span class="hljs-number">0</span>x0<br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">3</span>)	TEXT	<span class="hljs-string">&quot;&quot;</span><span class="hljs-selector-class">.hello</span>(SB), NOSPLIT, $<span class="hljs-number">0</span>-<span class="hljs-number">16</span><br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">3</span>)	FUNCDATA	$<span class="hljs-number">0</span>, gclocals·<span class="hljs-number">33</span>cdeccccebe80329f1fdbee7f5874cb(SB)<br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">3</span>)	FUNCDATA	$<span class="hljs-number">1</span>, gclocals·<span class="hljs-number">33</span>cdeccccebe80329f1fdbee7f5874cb(SB)<br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">3</span>)	FUNCDATA	$<span class="hljs-number">3</span>, gclocals·<span class="hljs-number">33</span>cdeccccebe80329f1fdbee7f5874cb(SB)<br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">4</span>)	PCDATA	$<span class="hljs-number">2</span>, $<span class="hljs-number">0</span><br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">4</span>)	PCDATA	$<span class="hljs-number">0</span>, $<span class="hljs-number">0</span><br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">00000</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">4</span>)	MOVQ	<span class="hljs-string">&quot;&quot;</span>.a+<span class="hljs-number">8</span>(SP), AX<br>	<span class="hljs-number">0</span>x0005 <span class="hljs-number">00005</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">4</span>)	ADDQ	$<span class="hljs-number">2</span>, AX<br>	<span class="hljs-number">0</span>x0009 <span class="hljs-number">00009</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">5</span>)	MOVQ	AX, <span class="hljs-string">&quot;&quot;</span>.~r1+<span class="hljs-number">16</span>(SP)<br>	<span class="hljs-number">0</span>x000e <span class="hljs-number">00014</span> (<span class="hljs-selector-tag">main</span><span class="hljs-selector-class">.go</span>:<span class="hljs-number">5</span>)	RET<br>	<span class="hljs-number">0</span>x0000 <span class="hljs-number">48</span> <span class="hljs-number">8</span>b <span class="hljs-number">44</span> <span class="hljs-number">24</span> <span class="hljs-number">08</span> <span class="hljs-number">48</span> <span class="hljs-number">83</span> c0 <span class="hljs-number">02</span> <span class="hljs-number">48</span> <span class="hljs-number">89</span> <span class="hljs-number">44</span> <span class="hljs-number">24</span> <span class="hljs-number">10</span> c3     H.D$<span class="hljs-selector-class">.H</span>..<span class="hljs-selector-class">.H</span>.D$..<br>...<br></code></pre></td></tr></table></figure>
+
+<h3><span id="conclusion">Conclusion</span></h3><ol>
+<li>机器码生成与底层交互较多，涉及到 内存、寄存器等较为难理解的原理和代码</li>
+<li>作为开发人员，掌握这些知识的投资回报率太低，有所了解即可</li>
+</ol>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/30/3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E6%95%B0%E7%BB%84-Array/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">3.1 数据结构 -- 数组 Array</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/">
+                        <span class="hidden-mobile">2.4 编译原理 -- SSA中间代码生成</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>

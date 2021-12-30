@@ -1,0 +1,611 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="3.1 数组在学习了第二章 编译原理 后，对 Golang 的编译器实现有了较为浅显的认识。让我们可以从 编译期间、运行时 中对数据结构的底层原理进行分析。 数组 Array 是由相同类型元素的集合组成的数据结构，计算机会为数组分配一块连续的内存来保存其中的元素。 数组作为一种基本的数据结构，我们通常会从两个维度描述数组，数组中存储的元素类型( elemtype ) 和 数组最大能存储的元素个数(">
+<meta property="og:type" content="article">
+<meta property="og:title" content="3.1 数据结构 -- 数组 Array">
+<meta property="og:url" content="http://example.com/2021/12/30/3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E6%95%B0%E7%BB%84-Array/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="3.1 数组在学习了第二章 编译原理 后，对 Golang 的编译器实现有了较为浅显的认识。让我们可以从 编译期间、运行时 中对数据结构的底层原理进行分析。 数组 Array 是由相同类型元素的集合组成的数据结构，计算机会为数组分配一块连续的内存来保存其中的元素。 数组作为一种基本的数据结构，我们通常会从两个维度描述数组，数组中存储的元素类型( elemtype ) 和 数组最大能存储的元素个数(">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2021/12/30/3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E6%95%B0%E7%BB%84-Array/golang_index_check.png">
+<meta property="article:published_time" content="2021-12-30T15:34:50.000Z">
+<meta property="article:modified_time" content="2021-12-30T15:37:32.071Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/2021/12/30/3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E6%95%B0%E7%BB%84-Array/golang_index_check.png">
+  
+  
+  <title>3.1 数据结构 -- 数组 Array - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="3.1 数据结构 -- 数组 Array">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-30 23:34" pubdate>
+        2021年12月30日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      8.2k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      68 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">3.1 数据结构 -- 数组 Array</h1>
+            
+            <div class="markdown-body">
+              <h2><span id="31-数组">3.1 数组</span></h2><p>在学习了第二章 编译原理 后，对 Golang 的编译器实现有了较为浅显的认识。让我们可以从 编译期间、运行时 中对数据结构的底层原理进行分析。</p>
+<p><strong>数组 Array</strong> 是由相同类型元素的集合组成的数据结构，计算机会为数组分配一块连续的内存来保存其中的元素。</p>
+<p>数组作为一种基本的数据结构，我们通常会从两个维度描述数组，数组中存储的元素类型( elemtype ) 和 数组最大能存储的元素个数( len )。</p>
+<p>golang 对数组的表示有以下两种：</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs angelscript"><span class="hljs-string">[10]</span><span class="hljs-built_in">int</span><br><span class="hljs-string">[20]</span><span class="hljs-keyword">interface</span>&#123;&#125;<br></code></pre></td></tr></table></figure>
+
+<p>golang 数组在初始化后，无法改变大小、元素类型。</p>
+<h4><span id="编译期间-的-数组生成">编译期间 的 数组生成</span></h4><p>在 typecheck 阶段， <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/typecheck.go#L326">cmd/compile/internal/gc.typecheck1()</a> 将 类型为 OTARRAY 的节点 通过 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/types/type.go#L482">src/cmd/compile/internal/types/type.NewArray()</a> 生成 数组类型：</p>
+<ol>
+<li>elem 表示 元素的类型</li>
+<li>bound 表示 数组的大小</li>
+</ol>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs smali">// types.NewArray()<br>// NewArray returns a<span class="hljs-built_in"> new </span>fixed-length<span class="hljs-built_in"> array </span>Type.<br>func NewArray(elem *Type, bound int64) *Type &#123;<br><span class="hljs-built_in">	if </span>bound &lt; 0 &#123;<br>		Fatalf(<span class="hljs-string">&quot;NewArray: invalid bound %v&quot;</span>, bound)<br>	&#125;<br>	t<span class="hljs-keyword"> :</span>= New(TARRAY)<br>	t.Extra = &amp;Array&#123;Elem: elem, Bound: bound&#125;<br>	t.SetNotInHeap(elem.NotInHeap())<br><span class="hljs-built_in">	return </span>t<br>&#125;<br></code></pre></td></tr></table></figure>
+
+
+
+<h3><span id="311-初始化">3.1.1 初始化</span></h3><p>golang 数组的创建方式有两种：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// 显示的指定数组大小</span><br>arr := [<span class="hljs-number">3</span>]<span class="hljs-keyword">int</span>&#123;<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>&#125;<br><br><span class="hljs-comment">// [...]T 声明，需要 golang compile 推导 数组大小</span><br>arr := [...]<span class="hljs-keyword">int</span>&#123;<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>golang compile 在编译期间会 推导出 数组的大小，然后将其转换为第一种方式创建。</p>
+<h4><span id="上限推导">上限推导</span></h4><p>如果是第一种声明方式，变量的类型在 <strong>类型检查</strong> 阶段被提取出来，随后使用 gc.NewArray() 创建包含数组大小的 types.Array 结构体。</p>
+<p>当使用 […]T 方式声明数组时，编译器会将其匹配为 OCOMPLIT 类型，然后使用 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/5b0ec1a6ac0e644c89940e0fe5f79863ad2eafaa/src/cmd/compile/internal/gc/typecheck.go#L2793">cmd/compile/internal/gc.typecheckcomplit()</a> 推导出 数组的大小：</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs elm">// gc.typecheckcomplit()<br><span class="hljs-title">func</span> typecheckcomplit(n *<span class="hljs-type">Node</span>) (res *<span class="hljs-type">Node</span>) &#123;<br>	...<br>	if n.<span class="hljs-type">Right</span>.<span class="hljs-type">Op</span> == <span class="hljs-type">OTARRAY</span> &amp;&amp; n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span> != nil &amp;&amp; n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span>.<span class="hljs-type">Op</span> == <span class="hljs-type">ODDD</span> &#123;<br>		n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span> = typecheck(n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>, ctxType)<br>		if n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span> == nil &#123;<br>			n.<span class="hljs-type">Type</span> = nil<br>			return n<br>		&#125;<br>		elemType := n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span><br>        <br>        // 调用 gc.typecheckarraylist() 获取长度<br>		length := typecheckarraylit(elemType, -1, n.<span class="hljs-type">List</span>.<span class="hljs-type">Slice</span>(), &quot;array literal&quot;)<br><br>		n.<span class="hljs-type">Op</span> = <span class="hljs-type">OARRAYLIT</span><br>		n.<span class="hljs-type">Type</span> = types.<span class="hljs-type">NewArray</span>(elemType, length)<br>		n.<span class="hljs-type">Right</span> = nil<br>		return n<br>	&#125;<br>	...<br><br>	switch t.<span class="hljs-type">Etype</span> &#123;<br>	<span class="hljs-keyword">case</span> <span class="hljs-type">TARRAY</span>:<br>		typecheckarraylit(t.<span class="hljs-type">Elem</span>(), t.<span class="hljs-type">NumElem</span>(), n.<span class="hljs-type">List</span>.<span class="hljs-type">Slice</span>(), &quot;array literal&quot;)<br>		n.<span class="hljs-type">Op</span> = <span class="hljs-type">OARRAYLIT</span><br>		n.<span class="hljs-type">Right</span> = nil<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>gc.typecheckcomplit() 会调用  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/5b0ec1a6ac0e644c89940e0fe5f79863ad2eafaa/src/cmd/compile/internal/gc/typecheck.go#L3004">cmd/compile/internal/gc.typecheckarraylit()</a> 通过遍历元素的方式来计算数组中元素的数量</p>
+<p>有上述过程可知，两种创建方式在 runtime 完全是等价的，[…]T 这种方式 只是 golang 提供的一种语法糖。</p>
+<h4><span id="语句转换">语句转换</span></h4><p>对于一个由字面量组成的数组，根据数组元素数量的不同，编译器会在负责初始化字面量的  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/sinit.go#L860">src/cmd/compile/internal/gc.anylit()</a> 函数中做两种不同的优化：</p>
+<ol>
+<li>当元素数量小于或者等于 4 个时，会直接将数组中的元素放置在栈上</li>
+<li>当元素数量大于 4 个时，会将数组中的元素放置到静态区并在运行时取出<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// gc.anylit()</span><br>func anylit(n *Node, var_ *Node, init *Nodes) &#123;<br>	t := n<span class="hljs-selector-class">.Type</span><br>	switch n<span class="hljs-selector-class">.Op</span> &#123;<br>	default:<br>		Fatalf(<span class="hljs-string">&quot;anylit: not lit, op=%v node=%v&quot;</span>, n<span class="hljs-selector-class">.Op</span>, n)<br>    <br>    ......<br>    <br>    <span class="hljs-comment">// OARRAYLIT 数组 字面量</span><br>	case OSTRUCTLIT, OARRAYLIT:<br>		<span class="hljs-keyword">if</span> !t<span class="hljs-selector-class">.IsStruct</span>() &amp;&amp; !t<span class="hljs-selector-class">.IsArray</span>() &#123;<br>			Fatalf(<span class="hljs-string">&quot;anylit: not struct/array&quot;</span>)<br>		&#125;<br>        <br>        <span class="hljs-comment">// 长度大于 4，将数组中的元素放置在 静态区 并在 运行时取出</span><br>		<span class="hljs-keyword">if</span> var_<span class="hljs-selector-class">.isSimpleName</span>() &amp;&amp; n<span class="hljs-selector-class">.List</span><span class="hljs-selector-class">.Len</span>() &gt; <span class="hljs-number">4</span> &#123;<br>			<span class="hljs-comment">// lay out static data</span><br>			vstat := readonlystaticname(t)<br><br>			ctxt := inInitFunction<br>			<span class="hljs-keyword">if</span> n<span class="hljs-selector-class">.Op</span> == OARRAYLIT &#123;<br>				ctxt = inNonInitFunction<br>			&#125;<br>			fixedlit(ctxt, initKindStatic, n, vstat, init)<br><br>			<span class="hljs-comment">// copy static to var</span><br>			<span class="hljs-selector-tag">a</span> := nod(OAS, var_, vstat)<br><br>			<span class="hljs-selector-tag">a</span> = typecheck(<span class="hljs-selector-tag">a</span>, ctxStmt)<br>			<span class="hljs-selector-tag">a</span> = walkexpr(<span class="hljs-selector-tag">a</span>, init)<br>			init<span class="hljs-selector-class">.Append</span>(a)<br><br>			<span class="hljs-comment">// add expressions to automatic</span><br>			fixedlit(inInitFunction, initKindDynamic, n, var_, init)<br>			break<br>		&#125;<br><br>        <span class="hljs-comment">// 长度小于4，将数组中的元素放置在 栈 上</span><br>		fixedlit(inInitFunction, initKindLocalCode, n, var_, init)<br>	......<br>&#125;<br></code></pre></td></tr></table></figure></li>
+</ol>
+<p>当数组的元素 <strong>小于或者等于四个</strong> 时， <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/sinit.go#L503">cmd/compile/internal/gc.fixedlit</a> 会负责在函数编译之前将 [3]int{1, 2, 3} 转换为更加原始的语句：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// gc.fixedlit()</span><br><span class="hljs-comment">// fixedlit handles struct, array, and slice literals.</span><br>func fixedlit(ctxt initContext, kind initKind, n *Node, var_ *Node, init *Nodes) &#123;<br>	<span class="hljs-selector-tag">var</span> splitnode func(*Node) (<span class="hljs-selector-tag">a</span> *Node, value *Node)<br>	...<br><br>	<span class="hljs-keyword">for</span> _, r := range n<span class="hljs-selector-class">.List</span><span class="hljs-selector-class">.Slice</span>() &#123;<br>		<span class="hljs-selector-tag">a</span>, value := splitnode(r)<br>		<span class="hljs-selector-tag">a</span> = nod(OAS, <span class="hljs-selector-tag">a</span>, value)<br>		<span class="hljs-selector-tag">a</span> = typecheck(<span class="hljs-selector-tag">a</span>, ctxStmt)<br>		switch kind &#123;<br>		<span class="hljs-comment">// len() &gt; 4, 传入 initKindStatic</span><br>		case initKindStatic:<br>			genAsStatic(a)<br>		<span class="hljs-comment">// len() &lt;= 4，传入 initKindLocalCode</span><br>		case initKindLocalCode:<br>			<span class="hljs-selector-tag">a</span> = orderStmtInPlace(<span class="hljs-selector-tag">a</span>, map<span class="hljs-selector-attr">[string]</span><span class="hljs-selector-attr">[]</span>*Node&#123;&#125;)<br>			<span class="hljs-selector-tag">a</span> = walkstmt(a)<br>			init<span class="hljs-selector-class">.Append</span>(a)<br>		&#125;<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通过 gc.walkstmt() 将 [3]int{1, 2, 3} 拆分成一个声明变量的表达式 以及 几个赋值表达式：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// 声明变量 表达式</span><br><span class="hljs-selector-tag">var</span> arr <span class="hljs-selector-attr">[3]</span>int<br><br><span class="hljs-comment">// 赋值表达式</span><br>arr<span class="hljs-selector-attr">[0]</span> = <span class="hljs-number">1</span><br>arr<span class="hljs-selector-attr">[1]</span> = <span class="hljs-number">2</span><br>arr<span class="hljs-selector-attr">[2]</span> = <span class="hljs-number">3</span><br></code></pre></td></tr></table></figure>
+
+<p>当数组的元素 <strong>大于四个</strong> 时，gc.anylit() 会先获取一个唯一的 staticname，然后调用 gc.fixedlit() 函数在 静态存储区 初始化数组中的元素并将 临时变量赋值给数组：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs stylus">  ......<br>      <span class="hljs-comment">// 长度大于 4，将数组中的元素放置在 静态区 并在 运行时取出</span><br><span class="hljs-keyword">if</span> var_<span class="hljs-selector-class">.isSimpleName</span>() &amp;&amp; n<span class="hljs-selector-class">.List</span><span class="hljs-selector-class">.Len</span>() &gt; <span class="hljs-number">4</span> &#123;<br>	<span class="hljs-comment">// lay out static data</span><br>	vstat := staticname(t)<br>	vstat := readonlystaticname(t)<br><br>	ctxt := inInitFunction<br>	<span class="hljs-keyword">if</span> n<span class="hljs-selector-class">.Op</span> == OARRAYLIT &#123;<br>		ctxt = inNonInitFunction<br>	&#125;<br>	fixedlit(ctxt, initKindStatic, n, vstat, init)<br><br>	<span class="hljs-comment">// copy static to var</span><br>	<span class="hljs-selector-tag">a</span> := nod(OAS, var_, vstat)<br><br>	<span class="hljs-selector-tag">a</span> = typecheck(<span class="hljs-selector-tag">a</span>, ctxStmt)<br>	<span class="hljs-selector-tag">a</span> = walkexpr(<span class="hljs-selector-tag">a</span>, init)<br>	init<span class="hljs-selector-class">.Append</span>(a)<br><br>	<span class="hljs-comment">// add expressions to automatic</span><br>	fixedlit(inInitFunction, initKindDynamic, n, var_, init)<br>	break<br>&#125;<br>  ......<br></code></pre></td></tr></table></figure>
+<p>以 [5]int{1, 2, 3, 4, 5} 为例，可以将上述过程理解为以下的伪代码：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// 声明语句</span><br><span class="hljs-selector-tag">var</span> arr <span class="hljs-selector-attr">[5]</span>int<br><span class="hljs-comment">// 静态存储区</span><br>statictmp_0<span class="hljs-selector-attr">[0]</span> = <span class="hljs-number">1</span><br>statictmp_0<span class="hljs-selector-attr">[1]</span> = <span class="hljs-number">2</span><br>statictmp_0<span class="hljs-selector-attr">[2]</span> = <span class="hljs-number">3</span><br>statictmp_0<span class="hljs-selector-attr">[3]</span> = <span class="hljs-number">4</span><br>statictmp_0<span class="hljs-selector-attr">[4]</span> = <span class="hljs-number">5</span><br><br><span class="hljs-comment">// 返回 临时变量</span><br>arr = statictmp_0<br></code></pre></td></tr></table></figure>
+
+<h3><span id="312-访问-和-赋值">3.1.2 访问 和 赋值</span></h3><h4><span id="访问-index">访问 – index</span></h4><p>无论是在栈上还是静态存储区，数组在内存中都是一连串的内存空间，我们通过指向数组开头的指针、元素的数量以及元素类型占的空间大小表示数组。</p>
+<p>错误的索引，会导致 取数据失败 -&gt; 越界。</p>
+<p>在 访问数组 以及 对数组元素赋值时，都使用到索引。因此，必须保证 数组访问不越界。</p>
+<p>golang 在 编译期间的 <strong>静态类型检查阶段</strong> 检查判断数组是否越界，在  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/typecheck.go#L326">gc.typecheck1()</a> 中，以下代码验证了访问数组的索引：</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs elm">// gc.typecheck1()<br><span class="hljs-title">func</span> typecheck1(n *<span class="hljs-type">Node</span>, top int) (res *<span class="hljs-type">Node</span>) &#123;<br>    ......<br>    <br>	switch n.<span class="hljs-type">Op</span> &#123;<br>	// <span class="hljs-type">OINDEX</span> 对应到 索引类型<br>	case <span class="hljs-type">OINDEX</span>:<br>		ok |= ctxExpr<br>		l := n.<span class="hljs-type">Left</span>  // array<br>		r := n.<span class="hljs-type">Right</span> // index<br>		switch n.<span class="hljs-type">Left</span>.<span class="hljs-type">Type</span>.<span class="hljs-type">Etype</span> &#123;<br>		case <span class="hljs-type">TSTRING</span>, <span class="hljs-type">TARRAY</span>, <span class="hljs-type">TSLICE</span>:<br>			...<br>			// 非整数 索引<br>			if n.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span> != nil &amp;&amp; !n.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span>.<span class="hljs-type">IsInteger</span>() &#123;<br>				yyerror(&quot;non-integer array index %v&quot;, n.<span class="hljs-type">Right</span>)<br>				break<br>			&#125;<br>			<br>			<span class="hljs-keyword">if</span> !n.<span class="hljs-type">Bounded</span>() &amp;&amp; <span class="hljs-type">Isconst</span>(n.<span class="hljs-type">Right</span>, <span class="hljs-type">CTINT</span>) &#123;<br>				x := n.<span class="hljs-type">Right</span>.<span class="hljs-type">Int64</span>()<br>				// 负数 索引<br>				<span class="hljs-keyword">if</span> x &lt; <span class="hljs-number">0</span> &#123;<br>					yyerror(<span class="hljs-string">&quot;invalid array index %v (index must be non-negative)&quot;</span>, n.<span class="hljs-type">Right</span>)<br>				&#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> n.<span class="hljs-type">Left</span>.<span class="hljs-type">Type</span>.<span class="hljs-type">IsArray</span>() &amp;&amp; x &gt;= n.<span class="hljs-type">Left</span>.<span class="hljs-type">Type</span>.<span class="hljs-type">NumElem</span>() &#123;<br>				    // 越界 索引<br>					yyerror(<span class="hljs-string">&quot;invalid array index %v (out of bounds for %d-element array)&quot;</span>, n.<span class="hljs-type">Right</span>, n.<span class="hljs-type">Left</span>.<span class="hljs-type">Type</span>.<span class="hljs-type">NumElem</span>())<br>				&#125;<br>			&#125;<br>		&#125;<br>	...<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>gc.typecheck1() 只能判断 数组、字符串、切片的一些简单越界错误，如：直接使用 整数 或者 常量访问数组。</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs smali">// index error<br>arr[4]: invalid<span class="hljs-built_in"> array </span>index 4 (out of bounds for 3-element array)<br></code></pre></td></tr></table></figure>
+
+<p>但是当使用 <strong>变量</strong> 去访问数组 或者 字符串 时，编译器就无法提前发现错误，需要在 golang runtime 中，去 <strong>发现</strong> 并 <strong>阻止</strong> 不合法的访问：</p>
+<figure class="highlight sas"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sas">// runtime panic <span class="hljs-meta">error</span><br>arr[i]: panic: runtime <span class="hljs-meta">error</span>: <span class="hljs-meta">index</span> <span class="hljs-meta">out</span> of range [4] with <span class="hljs-meta">length</span> 3<br></code></pre></td></tr></table></figure>
+
+<p>golang runtime 处理 数组、切片、字符串的索引越界操作时，会由 运行时 的  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/runtime/asm_386.s#L1412">runtime.panicIndex()</a> 以及 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/22d28a24c8b0d99f2ad6da5fe680fa3cfa216651/src/runtime/panic.go#L86">runtime.goPanicIndex()</a> 触发程序的运行时错误 并 导致崩溃退出：</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs reasonml"><span class="hljs-comment">// runtime.panicIndex()</span><br>TEXT runtime·panic<span class="hljs-constructor">Index(SB)</span>,NOSPLIT,$<span class="hljs-number">0</span>-<span class="hljs-number">8</span><br>	MOVL	AX, x+<span class="hljs-number">0</span>(FP)<br>	MOVL	CX, y+<span class="hljs-number">4</span>(FP)<br>	JMP	runtime·go<span class="hljs-constructor">PanicIndex(SB)</span><br><br><span class="hljs-comment">// runtime.goPanicIndex()</span><br>func go<span class="hljs-constructor">PanicIndex(<span class="hljs-params">x</span> <span class="hljs-params">int</span>, <span class="hljs-params">y</span> <span class="hljs-params">int</span>)</span> &#123;<br>	panic<span class="hljs-constructor">Check1(<span class="hljs-params">getcallerpc</span>()</span>, <span class="hljs-string">&quot;index out of range&quot;</span>)<br>	panic(boundsError&#123;x: <span class="hljs-built_in">int64</span>(x), signed: <span class="hljs-literal">true</span>, y: y, code: boundsIndex&#125;)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>当数组的访问操作 OINDEX 成功通过编译器的检查后，会被转换成对应的 SSA 指令。以如下存在 索引越界 的代码为例，经过编译得到对应的 ssa.html 文件：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs smali">package<span class="hljs-built_in"> check</span><br><span class="hljs-built_in"></span><br>func outOfRange()<span class="hljs-built_in"> int </span>&#123;<br>	arr<span class="hljs-keyword"> :</span>= [3]int&#123;1, 2, 3&#125;<br>	i<span class="hljs-keyword"> :</span>= 4<br>	elem<span class="hljs-keyword"> :</span>= arr[i]<br><span class="hljs-built_in">	return </span>elem<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通过以下命令编译：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs routeros"><span class="hljs-comment"># 编译命令</span><br><span class="hljs-attribute">GOSSAFUNC</span>=outOfRange go build array.go<br><br>output:<br>dumped SSA <span class="hljs-keyword">to</span> ./ssa.html<br></code></pre></td></tr></table></figure>
+
+<p>生成的 ssa.html 预览如下：</p>
+<img src="/2021/12/30/3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E6%95%B0%E7%BB%84-Array/golang_index_check.png" srcset="/img/loading.gif" lazyload class title="OINDEX 生成的 ssa 中间代码">
+
+<p>start 阶段生成的 SSA 代码是优化之前的第一版中间代码，以 elem := arr[i] 为例，在这段中间代码中我们发现 Go 语言为数组的访问操作生成了判断数组上限的指令 IsInBounds 以及当条件不满足时触发程序崩溃的 PanicBounds 指令，最后在生成的 SSA 中间代码中，转换为 runtime.panicIndex()</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs smali">// Start 阶段<br>b1:<br><span class="hljs-keyword">    .</span>..<br>    v22 (6) = LocalAddr &lt;*[3]int&gt; &#123;arr&#125; v2 v20<br>    // arr[i] index = i<br>    v23 (6) = IsInBounds &lt;bool&gt; v21 v11<br>If v23 → b2 b3 (likely) (6)<br><br>b2: ← b1-<br>    v26 (6) = PtrIndex &lt;*int&gt; v22 v21<br>    v27 (6) = Copy &lt;mem&gt; v20<br>    v28 (6) = Load &lt;int&gt; v26 v27 (elem[int])<br><span class="hljs-keyword">    .</span>..<br>Ret v30 (+7)<br><br>b3: ← b1-<br>    v24 (6) = Copy &lt;mem&gt; v20<br>    // out of index<br>    v25 (6) = PanicBounds &lt;mem&gt; [0] v21 v11 v24<br>Exit v25 (6)<br><br><br>// gen ssa<br>        <span class="hljs-comment"># /root/index_check/check.go</span><br>        00000 (3) TEXT <span class="hljs-string">&quot;&quot;</span>.outOfRange(SB), ABIInternal<br>        00001 (3) FUNCDATA $0, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB)<br>        00002 (3) FUNCDATA $1, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB)<br>v33     00003 (+6) MOVL $4, AX<br>v23     00004 (6) MOVL $3, CX<br>v26     00005 (6) PCDATA $1, $0<br>        // 最后转换为 runtime.panicIndex()<br>v26     00006 (6) CALL runtime.panicIndex(SB)<br>        00007 (6) XCHGL AX, AX<br>        00008 (?) END<br></code></pre></td></tr></table></figure>
+
+<p>在正常的情况下，索引没有越界时，编译器会先获取 数组的内存地址 和 访问的下标、利用 PtrIndex 计算出目标元素的地址，最后使用 Load 将指针中的元素加载到内存中。</p>
+<p>以下面正常索引 的代码为例：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs smali">package<span class="hljs-built_in"> check</span><br><span class="hljs-built_in"></span><br>func outOfRange()<span class="hljs-built_in"> int </span>&#123;<br>	arr<span class="hljs-keyword"> :</span>= [3]int&#123;1, 2, 3&#125;<br>	i<span class="hljs-keyword"> :</span>= 2<br>	elem<span class="hljs-keyword"> :</span>= arr[i]<br><span class="hljs-built_in">	return </span>elem<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在 Start 阶段 转换为以下代码：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs smali">b1:<br><span class="hljs-keyword">    .</span>..<br>    v21 (5) = LocalAddr &lt;*[3]int&gt; &#123;arr&#125; v2 v20<br>    // PtrIndex()<br>    v22 (5) = PtrIndex &lt;*int&gt; v21 v14<br>    // Load()<br>    v23 (5) = Load &lt;int&gt; v22 v20 (elem[int])<br><span class="hljs-keyword">    .</span>..<br></code></pre></td></tr></table></figure>
+
+<p>golang 在 编译期间 &amp; 运行时中，都对数组的访问做了检查，进而保证不存在越界的情况。</p>
+<h4><span id="赋值-更新">赋值 – 更新</span></h4><p>数组的 赋值 和 更新 操作 也会在 SSA 生成期间 计算出数组当前元素的内存地址，然后 修改当前内存地址的内容。</p>
+<p>以下面的代码为例：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs smali">package<span class="hljs-built_in"> check</span><br><span class="hljs-built_in"></span><br>func assign() &#123;<br>	arr<span class="hljs-keyword"> :</span>= [3]int&#123;1, 2, 3&#125;<br>	i<span class="hljs-keyword"> :</span>= 2<br>	arr[i] = 4<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在 Start 阶段 转换为以下代码：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs smali">b1:<br><span class="hljs-keyword">    .</span>..<br>    // LocalAddr() 确定数组地址<br>    v21 (5) = LocalAddr &lt;*[3]int&gt; &#123;arr&#125; v2 v19<br>    // PtrIndex 获取目标元素的地址<br>    v22 (5) = PtrIndex &lt;*int&gt; v21 v13<br>    // Store() 将数据存入到地址<br>    v23 (5) = Store &lt;mem&gt; &#123;int&#125; v22 v20 v19<br><span class="hljs-keyword">    .</span>..<br></code></pre></td></tr></table></figure>
+
+<p>数组的寻址 &amp; 赋值操作，不涉及运行时函数，都是在 编译阶段完成。</p>
+<h3><span id="conclusion">Conclusion</span></h3><ol>
+<li>数组的访问 和 赋值 同时依赖 golang compile &amp; runtime</li>
+<li>在编译期间 和 运行时 中，都进行了 索引越界的判断</li>
+</ol>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/">
+                        <span class="hidden-mobile">2.5 编译原理 -- 机器码生成</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>
