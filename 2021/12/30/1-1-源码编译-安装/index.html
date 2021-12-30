@@ -16,16 +16,17 @@
   <meta name="author" content="Thomas Yuan">
   <meta name="keywords" content="">
   
-    <meta name="description" content="Gopher Thomas 的个人博客">
+    <meta name="description" content="1. 准备工作Go 1.5 及以后的版本实现了 bootstrapping（自举），在编译 Go 1.5 以上版本时，首先应安装&#x2F;编译 Go 1.4 1.1 bootstrapping程序语言编译器使用自身的语言特性来编译自己，Go 1.5 支持了 通过 基于 Golang 实现的编译器来编译自己 Go, Rust 等都实现了 bootstrapping 1.2 CentOS 7.6 编译 Gol">
 <meta property="og:type" content="article">
 <meta property="og:title" content="1.1 源码编译 &amp; 安装">
 <meta property="og:url" content="http://example.com/2021/12/30/1-1-%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-%E5%AE%89%E8%A3%85/index.html">
 <meta property="og:site_name" content="Gopher Thomas">
-<meta property="og:description" content="Gopher Thomas 的个人博客">
+<meta property="og:description" content="1. 准备工作Go 1.5 及以后的版本实现了 bootstrapping（自举），在编译 Go 1.5 以上版本时，首先应安装&#x2F;编译 Go 1.4 1.1 bootstrapping程序语言编译器使用自身的语言特性来编译自己，Go 1.5 支持了 通过 基于 Golang 实现的编译器来编译自己 Go, Rust 等都实现了 bootstrapping 1.2 CentOS 7.6 编译 Gol">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2021-12-30T14:44:33.000Z">
-<meta property="article:modified_time" content="2021-12-30T14:44:33.080Z">
+<meta property="article:modified_time" content="2021-12-30T14:52:21.587Z">
 <meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
 <meta name="twitter:card" content="summary_large_image">
   
   
@@ -196,7 +197,7 @@
   
     <span class="post-meta mr-2">
       <i class="iconfont icon-chart"></i>
-      0 字
+      1.7k 字
     </span>
   
 
@@ -205,7 +206,7 @@
       <i class="iconfont icon-clock-fill"></i>
       
       
-      1 分钟
+      14 分钟
     </span>
   
 
@@ -245,12 +246,52 @@
             <h1 style="display: none">1.1 源码编译 &amp; 安装</h1>
             
             <div class="markdown-body">
-              
+              <h2><span id="1-准备工作">1. 准备工作</span></h2><p>Go 1.5 及以后的版本实现了 bootstrapping（自举），在编译 Go 1.5 以上版本时，首先应安装/编译 Go 1.4</p>
+<h3><span id="11-bootstrapping">1.1 bootstrapping</span></h3><p>程序语言编译器使用自身的语言特性来编译自己，Go 1.5 支持了 通过 基于 Golang 实现的编译器来编译自己</p>
+<p>Go, Rust 等都实现了 bootstrapping</p>
+<h3><span id="12-centos-76-编译-golang-源码">1.2 CentOS 7.6 编译 Golang 源码</span></h3><p>Win10 编译 Go1.4 需要借助 MinGW，不如 Linux 下的 GCC 来的直接。  </p>
+<p>首先需要配置 CentOS-Base 源 以及 /etc/resolv.conf 中的 nameserver 解析，然后安装 gcc：</p>
+<figure class="highlight cmake"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs cmake">yum <span class="hljs-keyword">install</span> gcc<br></code></pre></td></tr></table></figure>
+
+<p>下载 Go 1.4 源码：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs awk">cd /root<br>mkdir -p <span class="hljs-regexp">/root/g</span>o1.<span class="hljs-number">4</span>/<br><br>cd <span class="hljs-regexp">/root/g</span>o1.<span class="hljs-number">4</span><br><br><span class="hljs-comment"># 通过 wget 获取</span><br>wget https:<span class="hljs-regexp">//</span>storage.googleapis.com<span class="hljs-regexp">/golang/g</span>o1.<span class="hljs-number">4</span>-bootstrap-<span class="hljs-number">20170531</span>.tar.gz<br><br><span class="hljs-comment"># 解压到当前目录</span><br>tar zxvf go1.<span class="hljs-number">4</span>-bootstrap-<span class="hljs-number">20170531</span>.tar.gz<br><br><span class="hljs-comment"># 切换到 /root/go1.4/go/src 目录下</span><br>cd <span class="hljs-regexp">/root/g</span>o1.<span class="hljs-number">4</span><span class="hljs-regexp">/go/</span>src<br><br><span class="hljs-comment"># 执行编译</span><br>./all.bash<br></code></pre></td></tr></table></figure>
+
+<p>编译完成后，生成的二进制文件位于：**/root/go1.4/go/bin**, 通过执行以下命令检查版本</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-comment"># version check</span><br><span class="hljs-regexp">/root/g</span>o1.<span class="hljs-number">4</span><span class="hljs-regexp">/go/</span>bin/go version<br><br><span class="hljs-comment">### 输出信息 </span><br>go version go1.<span class="hljs-number">4</span>-bootstrap-<span class="hljs-number">20170531</span> linux/amd64<br></code></pre></td></tr></table></figure>
+
+<h3><span id="13-通过-go-14-编译-go-15-及以上版本">1.3 通过 Go 1.4 编译 Go 1.5 及以上版本</span></h3><p>用 1.2 中编译好的 Go 1.4 编译 Go 1.17.4</p>
+<p>首先通过 wget 获取到 go 1.17.4 源码包，并进行解压操作：</p>
+<figure class="highlight vim"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs vim"><span class="hljs-built_in">mkdir</span> -<span class="hljs-keyword">p</span> /root/<span class="hljs-keyword">go</span>-<span class="hljs-keyword">source</span>-code/ &amp;&amp; <span class="hljs-keyword">cd</span> /root/<span class="hljs-keyword">go</span>-<span class="hljs-keyword">source</span>-code/<br><br>wget http<span class="hljs-variable">s:</span>//<span class="hljs-keyword">dl</span>.google.<span class="hljs-keyword">com</span>/<span class="hljs-keyword">go</span>/go1.<span class="hljs-number">17.4</span>.src.tar.gz<br><br>tar zxvf <span class="hljs-keyword">go</span>-<span class="hljs-keyword">source</span>-code/<br></code></pre></td></tr></table></figure>
+
+<p>通过 Go 1.14 编译 Go 1.17.4</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-comment"># 设定 GOROOT_BOOTSTRAP 自举版本</span><br>export GOROOT_BOOTSTRAP=<span class="hljs-regexp">/root/g</span>o1.<span class="hljs-number">4</span>/go<br><br>cd <span class="hljs-regexp">/root/g</span>o-source-code<span class="hljs-regexp">/go/</span>src<br><br><span class="hljs-comment"># compile</span><br>./all.bash<br></code></pre></td></tr></table></figure>
+
+<p>编译完成后的输出：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs clean">##### ../misc/cgo/errors<br>PASS<br><br>##### ../misc/cgo/testsigfwd<br>ok      testsigfwd<br><br>##### ../test/bench/go1<br><br>##### ../test<br><br>##### API check<br>Go version is <span class="hljs-string">&quot;go1.17.4&quot;</span>, ignoring -next /root/go-source-<span class="hljs-keyword">code</span>/go/api/next.txt<br><br>ALL TESTS PASSED<br>---<br>Installed Go for linux/amd64 <span class="hljs-keyword">in</span> /root/go-source-<span class="hljs-keyword">code</span>/go<br>Installed commands <span class="hljs-keyword">in</span> /root/go-source-<span class="hljs-keyword">code</span>/go/bin<br>*** You need to add /root/go-source-<span class="hljs-keyword">code</span>/go/bin to your PATH.<br></code></pre></td></tr></table></figure>
+
+<p>将编译后的 Go 1.17.4 加入到环境变量：</p>
+<figure class="highlight elixir"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs elixir"><span class="hljs-comment"># go 1.17.4 config</span><br>export PATH=<span class="hljs-variable">$PATH</span><span class="hljs-symbol">:/root/go-source-code/go/bin</span><br><br><span class="hljs-comment"># Go env sertting</span><br>export GOROOT=<span class="hljs-regexp">/root/go</span>-source-code/go<br>export GOPATH=<span class="hljs-regexp">/root/go</span>Code<br>export PATH=<span class="hljs-variable">$PATH</span><span class="hljs-symbol">:</span><span class="hljs-variable">$GOROOT</span>/<span class="hljs-symbol">bin:</span><span class="hljs-variable">$GOPATH</span>/bin<br><br><span class="hljs-comment"># 生效</span><br>source /etc/profile<br></code></pre></td></tr></table></figure>
             </div>
             <hr>
             <div>
               <div class="post-metas mb-3">
                 
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
                 
               </div>
               
