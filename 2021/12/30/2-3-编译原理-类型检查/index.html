@@ -1,0 +1,637 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="2.3 Type checking（类型检查）经过 Parsing(词法分析 &amp; 语法分析)阶段后，我们得到了源文件的 AST 树，表明了此时的源码文件已经不存在 词法、语法错误等问题 后续将要执行的类型检查，会遍历 AST 中的节点，对每一个节点的类型进行检验，找出其中存在的 语法 &amp; 类型错误； 同时在这个过程中可能会改写 AST，剔除不会被执行的代码、优化代码、改写 make">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2.3 编译原理 -- 类型检查">
+<meta property="og:url" content="http://example.com/2021/12/30/2-3-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%B1%BB%E5%9E%8B%E6%A3%80%E6%9F%A5/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="2.3 Type checking（类型检查）经过 Parsing(词法分析 &amp; 语法分析)阶段后，我们得到了源文件的 AST 树，表明了此时的源码文件已经不存在 词法、语法错误等问题 后续将要执行的类型检查，会遍历 AST 中的节点，对每一个节点的类型进行检验，找出其中存在的 语法 &amp; 类型错误； 同时在这个过程中可能会改写 AST，剔除不会被执行的代码、优化代码、改写 make">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-12-30T15:03:54.000Z">
+<meta property="article:modified_time" content="2021-12-30T15:24:05.659Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  <title>2.3 编译原理 -- 类型检查 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="2.3 编译原理 -- 类型检查">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-30 23:03" pubdate>
+        2021年12月30日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      10k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      87 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">2.3 编译原理 -- 类型检查</h1>
+            
+            <div class="markdown-body">
+              <h1><span id="23-type-checking类型检查">2.3 Type checking（类型检查）</span></h1><p>经过 Parsing(词法分析 &amp; 语法分析)阶段后，我们得到了源文件的 AST 树，表明了此时的源码文件已经不存在 词法、语法错误等问题</p>
+<p>后续将要执行的类型检查，会遍历 AST 中的节点，对每一个节点的类型进行检验，找出其中存在的 语法 &amp; 类型错误；</p>
+<p>同时在这个过程中可能会改写 AST，剔除不会被执行的代码、优化代码、改写 make, new 等关键字</p>
+<h2><span id="231-强类型-strong-与-弱类型-weak">2.3.1 强类型 Strong 与 弱类型 Weak</span></h2><p>强类型：<br>-&gt; 在编译过程中有更严格的类型限制<br>-&gt; 编译器需要发现 变量赋值、返回值、函数调用时的类型错误<br>-&gt; 典型的强类型语言：C#, Java, Golang</p>
+<p>弱类型：<br>-&gt; 较为宽松的类型限制<br>-&gt; 内置隐式的类型转换<br>-&gt; 在发现类型错误时，可能会在 runtime 中进行隐式的类型转换<br>-&gt; 隐式的类型转换可能会造成 runtime error<br>-&gt; 典型的弱类型语言：PHP, JavaScript</p>
+<p>需要思考的问题：</p>
+<ol>
+<li>类型的转换是 <strong>显式</strong> 还是 <strong>隐式</strong> ？</li>
+<li>编译器是否会帮助编程人员 <strong>推断</strong> 变量的类型 ？</li>
+</ol>
+<h2><span id="232-静态类型-static-与-动态类型-dynamic">2.3.2 静态类型 Static 与 动态类型 Dynamic</span></h2><p>静态类型<br>-&gt; 静态类型检查<br>-&gt; 基于对源代码的分析来确定运行程序类型安全的过程<br>-&gt; 减少了程序在运行时的类型检查<br>-&gt; 在编译期间能够约束变量的类型</p>
+<p>动态类型<br>-&gt; 动态类型检查<br>-&gt; 在 <strong>运行时</strong> 确定程序类型安全的过程</p>
+<p>静态类型，动态类型并不冲突：</p>
+<ol>
+<li>静态类型编程语言 如：Java，既在编译期间进行了类型检查，又在 runtime 中使用 反射机制，根据对象的类型动态执行方法</li>
+<li>动态类型编程语言 如：JavaScript 通过 Flow 工具，也可以在编译期间发现代码中的类型错误</li>
+</ol>
+<h2><span id="233-执行过程-golang-源码实现">2.3.3 执行过程 – golang 源码实现</span></h2><p>golang 的编译器在编译期间使用 静态类型检查 确保了程序运行的类型安全</p>
+<p>golang 较为特殊的一点是：interface{}（可以将其看做简易的 泛型）</p>
+<p>当需要将 interface{} 转换成具体类型时，golang 还会在 runtime 中进行 动态类型检查，如果遇到无法发生转换的情况就会发生程序崩溃</p>
+<h3><span id="main-中的类型转换逻辑">Main() 中的类型转换逻辑</span></h3><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/d902791b509b641683d4ec58b282180c56918aec/src/cmd/compile/internal/gc/main.go#L603">src/cmd/compile/internal/gc.Main()</a>  在完成 词法 &amp; 语法分析后，会执行以下操作进行类型检查：</p>
+<ol>
+<li>检查 常量、类型、命名、函数声明的类型，通过 <strong>gc.typecheck()</strong> 函数</li>
+<li>检查 变量赋值 的类型，通过 <strong>gc.typecheck()</strong> 函数</li>
+<li>检查 函数体 的类型，通过 <strong>gc.typecheckslice()</strong> 函数</li>
+<li>检查 hashMap 中的 key-value 类型，通过 <strong>gc.checkMapKeys()</strong> 函数</li>
+</ol>
+<p>具体源码为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><code class="hljs go"># gc.Main()<br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">Main</span><span class="hljs-params">(archInit <span class="hljs-keyword">func</span>(*Arch)</span>)</span> &#123;<br>    ...<br>    ...<br>    ...<br>    <span class="hljs-comment">// Phase 1: const, type, and names and types of funcs.</span><br>	<span class="hljs-comment">//   This will gather all the information about types</span><br>	<span class="hljs-comment">//   and methods but doesn&#x27;t depend on any of it.</span><br>	<span class="hljs-comment">//</span><br>	<span class="hljs-comment">//   We also defer type alias declarations until phase 2</span><br>	<span class="hljs-comment">//   to avoid cycles like #18640.</span><br>	<span class="hljs-comment">//   TODO(gri) Remove this again once we have a fix for #25838.</span><br><br>	<span class="hljs-comment">// Don&#x27;t use range--typecheck can add closures to xtop.</span><br>	timings.Start(<span class="hljs-string">&quot;fe&quot;</span>, <span class="hljs-string">&quot;typecheck&quot;</span>, <span class="hljs-string">&quot;top1&quot;</span>)<br>	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; <span class="hljs-built_in">len</span>(xtop); i++ &#123;<br>		n := xtop[i]<br>		<span class="hljs-keyword">if</span> op := n.Op; op != ODCL &amp;&amp; op != OAS &amp;&amp; op != OAS2 &amp;&amp; (op != ODCLTYPE || !n.Left.Name.Param.Alias()) &#123;<br>			xtop[i] = typecheck(n, ctxStmt)<br>		&#125;<br>	&#125;<br><br>	<span class="hljs-comment">// Phase 2: Variable assignments.</span><br>	<span class="hljs-comment">//   To check interface assignments, depends on phase 1.</span><br><br>	<span class="hljs-comment">// Don&#x27;t use range--typecheck can add closures to xtop.</span><br>	timings.Start(<span class="hljs-string">&quot;fe&quot;</span>, <span class="hljs-string">&quot;typecheck&quot;</span>, <span class="hljs-string">&quot;top2&quot;</span>)<br>	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; <span class="hljs-built_in">len</span>(xtop); i++ &#123;<br>		n := xtop[i]<br>		<span class="hljs-keyword">if</span> op := n.Op; op == ODCL || op == OAS || op == OAS2 || op == ODCLTYPE &amp;&amp; n.Left.Name.Param.Alias() &#123;<br>			xtop[i] = typecheck(n, ctxStmt)<br>		&#125;<br>	&#125;<br><br>	<span class="hljs-comment">// Phase 3: Type check function bodies.</span><br>	<span class="hljs-comment">// Don&#x27;t use range--typecheck can add closures to xtop.</span><br>	timings.Start(<span class="hljs-string">&quot;fe&quot;</span>, <span class="hljs-string">&quot;typecheck&quot;</span>, <span class="hljs-string">&quot;func&quot;</span>)<br>	<span class="hljs-keyword">var</span> fcount <span class="hljs-keyword">int64</span><br>	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; <span class="hljs-built_in">len</span>(xtop); i++ &#123;<br>		n := xtop[i]<br>		<span class="hljs-keyword">if</span> n.Op == ODCLFUNC &#123;<br>			Curfn = n<br>			decldepth = <span class="hljs-number">1</span><br>			saveerrors()<br>			typecheckslice(Curfn.Nbody.Slice(), ctxStmt)<br>			checkreturn(Curfn)<br>			<span class="hljs-keyword">if</span> nerrors != <span class="hljs-number">0</span> &#123;<br>				Curfn.Nbody.Set(<span class="hljs-literal">nil</span>) <span class="hljs-comment">// type errors; do not compile</span><br>			&#125;<br>			<span class="hljs-comment">// Now that we&#x27;ve checked whether n terminates,</span><br>			<span class="hljs-comment">// we can eliminate some obviously dead code.</span><br>			deadcode(Curfn)<br>			fcount++<br>		&#125;<br>	&#125;<br>	<span class="hljs-comment">// With all types checked, it&#x27;s now safe to verify map keys. One single</span><br>	<span class="hljs-comment">// check past phase 9 isn&#x27;t sufficient, as we may exit with other errors</span><br>	<span class="hljs-comment">// before then, thus skipping map key errors.</span><br>	checkMapKeys()<br>	timings.AddEvent(fcount, <span class="hljs-string">&quot;funcs&quot;</span>)<br>    <br>    ...<br>    ...<br>    ...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="gctypecheck">gc.typecheck()</span></h3><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/f5978a09589badb927d3aa96998fc785524cae02/src/cmd/compile/internal/gc/typecheck.go#L202">cmd/compile/internal/gc.typecheck()</a> 做了一些类型检查前的准备工作，实际的逻辑位于 gc.typecheck1() 中</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs elm">// typecheck <span class="hljs-keyword">type</span> checks node n.<br>// <span class="hljs-type">The</span> result <span class="hljs-keyword">of</span> typecheck <span class="hljs-type">MUST</span> be assigned back to n, e.g.<br>// 	n.<span class="hljs-type">Left</span> = typecheck(n.<span class="hljs-type">Left</span>, top)<br>// n *<span class="hljs-type">Node</span> -&gt; 源文件的 <span class="hljs-type">AST</span><br><span class="hljs-title">func</span> typecheck(n *<span class="hljs-type">Node</span>, top int) (res *<span class="hljs-type">Node</span>) &#123;<br>	// typecheckok 在 词法、语法分析后才会被设定为 <span class="hljs-type">True</span><br>	if !typecheckok &#123;<br>		<span class="hljs-type">Fatalf</span>(&quot;early typecheck&quot;)<br>	&#125;<br><br>	<span class="hljs-keyword">if</span> n == nil &#123;<br>		return nil<br>	&#125;<br><br>	...<br>	...<br>	...<br><br>	typecheck_tcstack = append(typecheck_tcstack, n)<br>	// 此处调用 gc.typecheck1() 进行类型检查<br>	n = typecheck1(n, top)<br><br>	n.<span class="hljs-type">SetTypecheck</span>(<span class="hljs-number">1</span>)<br><br>	last := len(typecheck_tcstack) - 1<br>	typecheck_tcstack[last] = nil<br>	typecheck_tcstack = typecheck_tcstack[:last]<br><br>	lineno = lno<br>	return n<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="gctypecheck1">gc.typecheck1()</span></h3><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/typecheck.go#L326">cmd/compile/internal/gc.typecheck1()</a> 核心逻辑是由 switch-case 语句构成的函数</p>
+<p>根据传入节点 Op 的类型进入到不同的分支，如：加减乘除等操作符、函数调用、方法调用等 150 多种</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs elm"># gc.typecheck1()<br><span class="hljs-title">func</span> typecheck1(n *<span class="hljs-type">Node</span>, top int) (res *<span class="hljs-type">Node</span>) &#123;<br>    <br>	switch n.<span class="hljs-type">Op</span> &#123;<br>	case <span class="hljs-type">OTARRAY</span>:<br>		...<br><br>	case <span class="hljs-type">OTMAP</span>:<br>		...<br><br>	case <span class="hljs-type">OTCHAN</span>:<br>		...<br>	&#125;<br><br>	...<br><br>	return n<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="syntaxnode-结构体">syntax.Node 结构体</span></h3><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/f5978a09589badb927d3aa96998fc785524cae02/src/cmd/compile/internal/gc/syntax.go#L22">src/cmd/compile/internal/gc/syntax.go#Node</a> 表示了 AST 中的单个节点，对于理解类型检查的具体执行过程有较大帮助，其定义如下：</p>
+<figure class="highlight haskell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs haskell">// <span class="hljs-type">A</span> <span class="hljs-type">Node</span> is a single node <span class="hljs-keyword">in</span> the syntax tree.<br>// <span class="hljs-type">Actually</span> the syntax tree is a syntax <span class="hljs-type">DAG</span>, because there is only one<br>// node with <span class="hljs-type">Op</span>=<span class="hljs-type">ONAME</span> for a given <span class="hljs-keyword">instance</span> <span class="hljs-keyword">of</span> a variable x.<br>// <span class="hljs-type">The</span> same is true for <span class="hljs-type">Op</span>=<span class="hljs-type">OTYPE</span> and <span class="hljs-type">Op</span>=<span class="hljs-type">OLITERAL</span>. <span class="hljs-type">See</span> <span class="hljs-type">Node</span>.mayBeShared.<br><span class="hljs-class"><span class="hljs-keyword">type</span> <span class="hljs-type">Node</span> struct &#123;</span><br><span class="hljs-class">	// <span class="hljs-type">Tree</span> <span class="hljs-title">structure</span>.</span><br><span class="hljs-class">	// <span class="hljs-type">Generic</span> <span class="hljs-title">recursive</span> <span class="hljs-title">walks</span> <span class="hljs-title">should</span> <span class="hljs-title">follow</span> <span class="hljs-title">these</span> <span class="hljs-title">fields</span>.</span><br><span class="hljs-class">	<span class="hljs-type">Left</span>  *<span class="hljs-type">Node</span></span><br><span class="hljs-class">	<span class="hljs-type">Right</span> *<span class="hljs-type">Node</span></span><br><span class="hljs-class">	<span class="hljs-type">Ninit</span> <span class="hljs-type">Nodes</span></span><br><span class="hljs-class">	<span class="hljs-type">Nbody</span> <span class="hljs-type">Nodes</span></span><br><span class="hljs-class">	<span class="hljs-type">List</span>  <span class="hljs-type">Nodes</span></span><br><span class="hljs-class">	<span class="hljs-type">Rlist</span> <span class="hljs-type">Nodes</span></span><br><span class="hljs-class"></span><br><span class="hljs-class">	// <span class="hljs-title">most</span> <span class="hljs-title">nodes</span></span><br><span class="hljs-class">	<span class="hljs-type">Type</span> *<span class="hljs-title">types</span>.<span class="hljs-type">Type</span></span><br><span class="hljs-class">	<span class="hljs-type">Orig</span> *<span class="hljs-type">Node</span> // <span class="hljs-title">original</span> <span class="hljs-title">form</span>, <span class="hljs-title">for</span> <span class="hljs-title">printing</span>, <span class="hljs-title">and</span> <span class="hljs-title">tracking</span> <span class="hljs-title">copies</span> <span class="hljs-title">of</span> <span class="hljs-type">ONAMEs</span></span><br><span class="hljs-class"></span><br><span class="hljs-class">	// <span class="hljs-title">func</span></span><br><span class="hljs-class">	<span class="hljs-type">Func</span> *<span class="hljs-type">Func</span></span><br><span class="hljs-class"></span><br><span class="hljs-class">	// <span class="hljs-type">ONAME</span>, <span class="hljs-type">OTYPE</span>, <span class="hljs-type">OPACK</span>, <span class="hljs-type">OLABEL</span>, <span class="hljs-title">some</span> <span class="hljs-type">OLITERAL</span></span><br><span class="hljs-class">	<span class="hljs-type">Name</span> *<span class="hljs-type">Name</span></span><br><span class="hljs-class"></span><br><span class="hljs-class">	<span class="hljs-type">Sym</span> *<span class="hljs-title">types</span>.<span class="hljs-type">Sym</span>  // <span class="hljs-title">various</span></span><br><span class="hljs-class">	<span class="hljs-type">E</span>   <span class="hljs-title">interface</span>&#123;&#125; // <span class="hljs-type">Opt</span> or <span class="hljs-type">Val</span>, see methods below</span><br><br>	// <span class="hljs-type">Various</span>. <span class="hljs-type">Usually</span> an offset into a struct.<br>	<span class="hljs-type">Xoffset</span> int64<br><br>	<span class="hljs-type">Pos</span> src.<span class="hljs-type">XPos</span><br><br>	flags bitset32<br><br>	<span class="hljs-type">Esc</span> uint16 // <span class="hljs-type">EscXXX</span><br><br>	<span class="hljs-type">Op</span>  <span class="hljs-type">Op</span><br>	aux uint8<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="切片-otarray">切片 OTARRAY</span></h3><p>如果当前节点的操作类型是 OTARRAY, 首先会对右节点 -&gt; 切片 &amp; 数组中的元素进行类型检查</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-keyword">case</span> <span class="hljs-type">OTARRAY</span>:<br>    <span class="hljs-comment">// 检查右节点</span><br>	r :<span class="hljs-operator">=</span> typecheck(n.<span class="hljs-type">Right</span>, <span class="hljs-type">Etype</span>)<br>	<span class="hljs-keyword">if</span> r.<span class="hljs-keyword">Type</span> <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span> &#123;<br>		n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">return</span> n<br>	&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后根据当前节点左节点的不同，去更新 gc.Node 的类型，切片的声明方式有以下三种：</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs angelscript"><span class="hljs-string">[]</span><span class="hljs-built_in">int</span><br><span class="hljs-string">[...]</span><span class="hljs-built_in">int</span><br><span class="hljs-string">[3]</span><span class="hljs-built_in">int</span><br></code></pre></td></tr></table></figure>
+
+<p>对于第一种声明方式，直接调用了 types.NewSlice()：</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs elm">  <span class="hljs-keyword">if</span> n.<span class="hljs-type">Left</span> == nil &#123;<br><span class="hljs-title">t</span> = types.<span class="hljs-type">NewSlice</span>(r.<span class="hljs-type">Type</span>)<br></code></pre></td></tr></table></figure>
+<p>NewSlice() 返回 TSLICE 类型的结构体，其中包含了元素的类型信息。</p>
+<p>对于第二种声明方式，会调用 gc.typechecckcomplit() 处理。<br>在检查了其长度和类型后，调用 types.NewArray() 初始化一个存储着 元素类型 elemType 和 数组大小 length 的结构体。</p>
+<p>具体逻辑如下：</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs elm">    <span class="hljs-keyword">case</span> <span class="hljs-type">OCOMPLIT</span>:<br>		ok |= ctxExpr<br>		n = typecheckcomplit(n)<br>		<span class="hljs-keyword">if</span> n.<span class="hljs-type">Type</span> == nil &#123;<br>			return n<br>		&#125;<br><br>// typecheckcomplit() 实现<br><span class="hljs-title">func</span> typecheckcomplit(n *<span class="hljs-type">Node</span>) (res *<span class="hljs-type">Node</span>) &#123;<br>	...<br>	if n.<span class="hljs-type">Right</span>.<span class="hljs-type">Op</span> == <span class="hljs-type">OTARRAY</span> &amp;&amp; n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span> != nil &amp;&amp; n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span>.<span class="hljs-type">Op</span> == <span class="hljs-type">ODDD</span> &#123;<br>		n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span> = typecheck(n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>, ctxType)<br>		if n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span> == nil &#123;<br>			n.<span class="hljs-type">Type</span> = nil<br>			return n<br>		&#125;<br>		elemType := n.<span class="hljs-type">Right</span>.<span class="hljs-type">Right</span>.<span class="hljs-type">Type</span><br><br>		length := typecheckarraylit(elemType, -1, n.<span class="hljs-type">List</span>.<span class="hljs-type">Slice</span>(), &quot;array literal&quot;)<br><br>		n.<span class="hljs-type">Op</span> = <span class="hljs-type">OARRAYLIT</span><br>		n.<span class="hljs-type">Type</span> = types.<span class="hljs-type">NewArray</span>(elemType, length)<br>		n.<span class="hljs-type">Right</span> = nil<br>		return n<br>	&#125;<br>	...<br>&#125;<br><br>// types.<span class="hljs-type">NewArray</span>()<br>// <span class="hljs-type">NewArray</span> returns a new fixed-length array <span class="hljs-type">Type</span>.<br><span class="hljs-title">func</span> <span class="hljs-type">NewArray</span>(elem *<span class="hljs-type">Type</span>, bound int64) *<span class="hljs-type">Type</span> &#123;<br>	<span class="hljs-keyword">if</span> bound &lt; <span class="hljs-number">0</span> &#123;<br>		<span class="hljs-type">Fatalf</span>(<span class="hljs-string">&quot;NewArray: invalid bound %v&quot;</span>, bound)<br>	&#125;<br>	t := <span class="hljs-type">New</span>(<span class="hljs-type">TARRAY</span>)<br>	t.<span class="hljs-type">Extra</span> = &amp;<span class="hljs-type">Array</span>&#123;<span class="hljs-type">Elem</span>: elem, <span class="hljs-type">Bound</span>: bound&#125;<br>	t.<span class="hljs-type">SetNotInHeap</span>(elem.<span class="hljs-type">NotInHeap</span>())<br>	return t<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对于第三种方式，数组大小直接可获取到，调用 types.NewArray() 返回初始化后的 Array 结构体：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// gc.typecheck1()</span><br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>    		n<span class="hljs-selector-class">.Left</span> = indexlit(typecheck(n<span class="hljs-selector-class">.Left</span>, ctxExpr))<br>    		l := n<span class="hljs-selector-class">.Left</span><br>    		v := l<span class="hljs-selector-class">.Val</span>()<br>    		bound := v<span class="hljs-selector-class">.U</span>.(*Mpint)<span class="hljs-selector-class">.Int64</span>()<br>    		<span class="hljs-comment">// bound -&gt; length</span><br>    		t = types<span class="hljs-selector-class">.NewArray</span>(r<span class="hljs-selector-class">.Type</span>, bound)<br>        &#125;<br>        <br>		n<span class="hljs-selector-class">.Op</span> = OTYPE<br>		n<span class="hljs-selector-class">.Type</span> = t<br>		n<span class="hljs-selector-class">.Left</span> = nil<br>		n<span class="hljs-selector-class">.Right</span> = nil<br></code></pre></td></tr></table></figure>
+
+<p>以上的三个分支，会分别处理 数组 和切片 声明的不同形式，每一个分支都会更新 <strong>gc.Node</strong> 结构体中存储的 类型 并修改 AST。</p>
+<p>数组的长度是在 type check 期间确定的， […]int 这种声明方式只是 Golang 提供的语法糖</p>
+<h3><span id="哈希-otmap">哈希 OTMAP</span></h3><p>hashMap 初始化方式为：</p>
+<figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs css"><span class="hljs-selector-tag">var</span> map<span class="hljs-selector-attr">[keyType]</span> valueType<br></code></pre></td></tr></table></figure>
+
+<p>hashMap 对应到的标识为 OTMAP，具体处理逻辑如下：</p>
+<ol>
+<li>检查 hash 的 keyType</li>
+<li>检查 hash 的 valueType</li>
+<li>通过 gc.NewMap() 创建一个 TMAP 结构体</li>
+<li>当前节点加入到 mapqueue，后续通过 gc.checkMapKeys() 再次检查 hash 类型</li>
+</ol>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs smali">// gc.typecheck1()<br>    case OTMAP:<br>		ok |= ctxType<br>		// 1.<span class="hljs-built_in"> check </span>key Type<br>		n.Left = typecheck(n.Left, ctxType)<br>		// 2.<span class="hljs-built_in"> check </span>value Type<br>		n.Right = typecheck(n.Right, ctxType)<br>		l<span class="hljs-keyword"> :</span>= n.Left<br>		r<span class="hljs-keyword"> :</span>= n.Right<br>	<span class="hljs-built_in">	if </span>l.Type == nil || r.Type == nil &#123;<br>			n.Type = nil<br>		<span class="hljs-built_in">	return </span>n<br>		&#125;<br>	<span class="hljs-built_in">	if </span>l.Type.NotInHeap() &#123;<br>			yyerror(<span class="hljs-string">&quot;incomplete (or unallocatable) map key not allowed&quot;</span>)<br>		&#125;<br>	<span class="hljs-built_in">	if </span>r.Type.NotInHeap() &#123;<br>			yyerror(<span class="hljs-string">&quot;incomplete (or unallocatable) map value not allowed&quot;</span>)<br>		&#125;<br>        // 3. gc.NewMap()<span class="hljs-built_in"> return </span>TMAP struct<br>		setTypeNode(n, types.NewMap(l.Type, r.Type))<br>		// 4. put node into mapqueue, recheck through gc.checkMapKeys<br>		mapqueue = append(mapqueue, n) //<span class="hljs-built_in"> check </span>map keys when all types are settled<br>		n.Left = nil<br>		n.Right = nil<br></code></pre></td></tr></table></figure>
+
+<h4><span id="typesnewmap">types.NewMap()</span></h4><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/f5978a09589badb927d3aa96998fc785524cae02/src/cmd/compile/internal/types/type.go#L536">cmd/compile/internal/types.NewMap()</a> 创建 TMAP 结构体，并初始化 hash 的键值类型</p>
+<figure class="highlight ada"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs ada">// NewMap returns a <span class="hljs-keyword">new</span> map <span class="hljs-keyword">Type</span> <span class="hljs-type">with </span>key <span class="hljs-keyword">type</span> <span class="hljs-type">k </span><span class="hljs-keyword">and</span> element (aka value) <span class="hljs-keyword">type</span> <span class="hljs-type">v.</span><br><span class="hljs-type"></span>func NewMap(k, v *<span class="hljs-keyword">Type</span>) *<span class="hljs-keyword">Type</span> <span class="hljs-type">&#123;</span><br><span class="hljs-type">	</span>t := <span class="hljs-keyword">New</span>(TMAP)<br>	mt := t.MapType()<br>	mt.Key = k<br>	mt.Elem = v<br>	<span class="hljs-keyword">return</span> t<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="gccheckmapkeys">gc.checkMapKeys()</span></h3><p>golang compile 会在第三阶段调用 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/f5978a09589badb927d3aa96998fc785524cae02/src/cmd/compile/internal/gc/typecheck.go#L3449">cmd/compile/internal/gc.checkMapKeys()</a> 再次检查 mapqueue 队列中 hash 节点的 key 类型</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// gc.checkMapKeys()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">checkMapKeys</span><span class="hljs-params">()</span></span> &#123;<br>    <span class="hljs-comment">// 遍历 mapqueue</span><br>	<span class="hljs-keyword">for</span> _, n := <span class="hljs-keyword">range</span> mapqueue &#123;<br>	    <span class="hljs-comment">// 获取 key Type</span><br>		k := n.Type.MapType().Key<br>		<span class="hljs-comment">// 检查 key</span><br>		<span class="hljs-keyword">if</span> !k.Broke() &amp;&amp; !IsComparable(k) &#123;<br>			yyerrorl(n.Pos, <span class="hljs-string">&quot;invalid map key type %v&quot;</span>, k)<br>		&#125;<br>	&#125;<br>	mapqueue = <span class="hljs-literal">nil</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="make关键字-omake">make关键字 OMAKE</span></h3><p>golang 内置 make() 函数，用于创建 切片、哈希、channel。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// hashmap</span><br><span class="hljs-keyword">var</span> x = <span class="hljs-built_in">make</span>(<span class="hljs-keyword">map</span>[<span class="hljs-keyword">int</span>]<span class="hljs-keyword">string</span>)<br><br><span class="hljs-comment">// array</span><br><span class="hljs-keyword">var</span> x = <span class="hljs-built_in">make</span>([]<span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>)<br><br><span class="hljs-comment">// channel</span><br><span class="hljs-keyword">var</span> ch = <span class="hljs-built_in">make</span>(<span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>)<br></code></pre></td></tr></table></figure>
+
+<p>类型检查阶段会根据创建的类型，将 make() 替换为特定的函数：</p>
+<ol>
+<li>检查 make 的第一个类型参数</li>
+<li>根据类型不同，进入不同的分支：TSLICE、TMAP、TCHAN</li>
+</ol>
+<p>case TSLICE：</p>
+<ol>
+<li>获取参数：len = args[1] 切片长度, cap = args[2] 切片容量</li>
+<li>len, cap 校验</li>
+<li>设定节点类型为 OMAKESLICE</li>
+</ol>
+<p>case TMAP:</p>
+<ol>
+<li>获取参数：len = args[1]</li>
+<li>设定节点类型为 OMAKETYPE</li>
+</ol>
+<p>case TCCHAN:</p>
+<ol>
+<li>获取参数：len = args[1] 缓冲区大小</li>
+<li>设定节点类型为 OMAKECHAN</li>
+</ol>
+<p>具体代码为：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-keyword">case</span> <span class="hljs-type">OMAKE</span>:<br>	ok <span class="hljs-operator">|=</span> ctxExpr<br>	<span class="hljs-comment">// 获取参数 args</span><br>	args :<span class="hljs-operator">=</span> n.<span class="hljs-type">List</span>.<span class="hljs-type">Slice</span>()<br>	<span class="hljs-keyword">if</span> len(args) <span class="hljs-operator">==</span> <span class="hljs-number">0</span> &#123;<br>		yyerror(<span class="hljs-string">&quot;missing argument to make&quot;</span>)<br>		n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">return</span> n<br>	&#125;<br><br>	n.<span class="hljs-type">List</span>.<span class="hljs-type">Set</span>(<span class="hljs-literal">nil</span>)<br>	<span class="hljs-comment">// 获取 第一个参数 的类型</span><br>	l :<span class="hljs-operator">=</span> args[<span class="hljs-number">0</span>]<br>	l <span class="hljs-operator">=</span> typecheck(l, <span class="hljs-type">Etype</span>)<br>	t :<span class="hljs-operator">=</span> l.<span class="hljs-keyword">Type</span><br>	<span class="hljs-keyword">if</span> t <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span> &#123;<br>		n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">return</span> n<br>	&#125;<br><br>	i :<span class="hljs-operator">=</span> <span class="hljs-number">1</span><br>	<span class="hljs-keyword">switch</span> t.<span class="hljs-type">Etype</span> &#123;<br>	<span class="hljs-keyword">default</span>:<br>		yyerror(<span class="hljs-string">&quot;cannot make type %v&quot;</span>, t)<br>		n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">return</span> n<br>	<br>    <span class="hljs-comment">// make slice</span><br>	<span class="hljs-keyword">case</span> <span class="hljs-type">TSLICE</span>:<br>		<span class="hljs-keyword">if</span> i <span class="hljs-operator">&gt;=</span> len(args) &#123;<br>			yyerror(<span class="hljs-string">&quot;missing len argument to make(%v)&quot;</span>, t)<br>			n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>			<span class="hljs-keyword">return</span> n<br>		&#125;<br><br>		l <span class="hljs-operator">=</span> args[i]<br>		i<span class="hljs-operator">++</span><br>		l <span class="hljs-operator">=</span> typecheck(l, ctxExpr)<br>		<span class="hljs-keyword">var</span> r <span class="hljs-operator">*</span><span class="hljs-type">Node</span><br>		<span class="hljs-keyword">if</span> i <span class="hljs-operator">&lt;</span> len(args) &#123;<br>			r <span class="hljs-operator">=</span> args[i]<br>			i<span class="hljs-operator">++</span><br>			r <span class="hljs-operator">=</span> typecheck(r, ctxExpr)<br>		&#125;<br><br>		<span class="hljs-keyword">if</span> l.<span class="hljs-keyword">Type</span> <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span> <span class="hljs-operator">||</span> (r <span class="hljs-operator">!=</span> <span class="hljs-literal">nil</span> <span class="hljs-operator">&amp;&amp;</span> r.<span class="hljs-keyword">Type</span> <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span>) &#123;<br>			n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>			<span class="hljs-keyword">return</span> n<br>		&#125;<br>		<span class="hljs-keyword">if</span> <span class="hljs-operator">!</span>checkmake(t, <span class="hljs-string">&quot;len&quot;</span>, l) <span class="hljs-operator">||</span> r <span class="hljs-operator">!=</span> <span class="hljs-literal">nil</span> <span class="hljs-operator">&amp;&amp;</span> <span class="hljs-operator">!</span>checkmake(t, <span class="hljs-string">&quot;cap&quot;</span>, r) &#123;<br>			n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>			<span class="hljs-keyword">return</span> n<br>		&#125;<br>		<span class="hljs-keyword">if</span> <span class="hljs-type">Isconst</span>(l, <span class="hljs-type">CTINT</span>) <span class="hljs-operator">&amp;&amp;</span> r <span class="hljs-operator">!=</span> <span class="hljs-literal">nil</span> <span class="hljs-operator">&amp;&amp;</span> <span class="hljs-type">Isconst</span>(r, <span class="hljs-type">CTINT</span>) <span class="hljs-operator">&amp;&amp;</span> l.<span class="hljs-type">Val</span>().<span class="hljs-type">U</span>.(<span class="hljs-operator">*</span><span class="hljs-type">Mpint</span>).<span class="hljs-type">Cmp</span>(r.<span class="hljs-type">Val</span>().<span class="hljs-type">U</span>.(<span class="hljs-operator">*</span><span class="hljs-type">Mpint</span>)) <span class="hljs-operator">&gt;</span> <span class="hljs-number">0</span> &#123;<br>			yyerror(<span class="hljs-string">&quot;len larger than cap in make(%v)&quot;</span>, t)<br>			n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>			<span class="hljs-keyword">return</span> n<br>		&#125;<br><br>		n.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> l<br>		n.<span class="hljs-type">Right</span> <span class="hljs-operator">=</span> r<br>		n.<span class="hljs-type">Op</span> <span class="hljs-operator">=</span> <span class="hljs-type">OMAKESLICE</span><br>		<br>    <span class="hljs-comment">// make map</span><br>	<span class="hljs-keyword">case</span> <span class="hljs-type">TMAP</span>:<br>		<span class="hljs-keyword">if</span> i <span class="hljs-operator">&lt;</span> len(args) &#123;<br>			l <span class="hljs-operator">=</span> args[i]<br>			i<span class="hljs-operator">++</span><br>			l <span class="hljs-operator">=</span> typecheck(l, ctxExpr)<br>			l <span class="hljs-operator">=</span> defaultlit(l, types.<span class="hljs-type">Types</span>[<span class="hljs-type">TINT</span>])<br>			<span class="hljs-keyword">if</span> l.<span class="hljs-keyword">Type</span> <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span> &#123;<br>				n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>				<span class="hljs-keyword">return</span> n<br>			&#125;<br>			<span class="hljs-keyword">if</span> <span class="hljs-operator">!</span>checkmake(t, <span class="hljs-string">&quot;size&quot;</span>, l) &#123;<br>				n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>				<span class="hljs-keyword">return</span> n<br>			&#125;<br>			n.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> l<br>		&#125; <span class="hljs-keyword">else</span> &#123;<br>			n.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> nodintconst(<span class="hljs-number">0</span>)<br>		&#125;<br>		n.<span class="hljs-type">Op</span> <span class="hljs-operator">=</span> <span class="hljs-type">OMAKEMAP</span><br><br>    <span class="hljs-comment">// make channel</span><br>	<span class="hljs-keyword">case</span> <span class="hljs-type">TCHAN</span>:<br>		l <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">if</span> i <span class="hljs-operator">&lt;</span> len(args) &#123;<br>			l <span class="hljs-operator">=</span> args[i]<br>			i<span class="hljs-operator">++</span><br>			l <span class="hljs-operator">=</span> typecheck(l, ctxExpr)<br>			l <span class="hljs-operator">=</span> defaultlit(l, types.<span class="hljs-type">Types</span>[<span class="hljs-type">TINT</span>])<br>			<span class="hljs-keyword">if</span> l.<span class="hljs-keyword">Type</span> <span class="hljs-operator">==</span> <span class="hljs-literal">nil</span> &#123;<br>				n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>				<span class="hljs-keyword">return</span> n<br>			&#125;<br>			<span class="hljs-keyword">if</span> <span class="hljs-operator">!</span>checkmake(t, <span class="hljs-string">&quot;buffer&quot;</span>, l) &#123;<br>				n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>				<span class="hljs-keyword">return</span> n<br>			&#125;<br>			n.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> l<br>		&#125; <span class="hljs-keyword">else</span> &#123;<br>			n.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> nodintconst(<span class="hljs-number">0</span>)<br>		&#125;<br>		n.<span class="hljs-type">Op</span> <span class="hljs-operator">=</span> <span class="hljs-type">OMAKECHAN</span><br>	&#125;<br><br>	<span class="hljs-keyword">if</span> i <span class="hljs-operator">&lt;</span> len(args) &#123;<br>		yyerror(<span class="hljs-string">&quot;too many arguments to make(%v)&quot;</span>, t)<br>		n.<span class="hljs-type">Op</span> <span class="hljs-operator">=</span> <span class="hljs-type">OMAKE</span><br>		n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>		<span class="hljs-keyword">return</span> n<br>	&#125;<br><br>	n.<span class="hljs-keyword">Type</span> <span class="hljs-operator">=</span> t<br></code></pre></td></tr></table></figure>
+
+<h3><span id="conclusion">Conclusion</span></h3><ol>
+<li><p>类型检查是 golang compile 的第二个阶段，在 词法&amp;语法分析后，我们得到了每个源文件对应的抽象语法树，随后的类型检查会遍历 AST 中的节点，对每个节点的类型进行校验，找出其中存在的 语法错误 导致的 类型错误。</p>
+</li>
+<li><p>对 AST 进行改写，如：make() 关键字; Slice、Map、Channel 的处理</p>
+</li>
+<li><p>make() 和 new() 内置函数，不会直接对应某些函数的实现，而是在编译期间被转换成真正存在的其他函数</p>
+</li>
+</ol>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">2.4 编译原理 -- SSA中间代码生成</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%8D%E6%B3%95%E5%88%86%E6%9E%90/">
+                        <span class="hidden-mobile">2.2 编译原理 -- 词法分析</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>

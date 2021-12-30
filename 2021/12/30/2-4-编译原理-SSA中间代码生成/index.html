@@ -1,0 +1,682 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="2.4 中间代码生成词法、语法分析 &amp; 类型检查 都属于 compile frontend，负责对源码进行分析并检查其中存在的词法和语法错误 经过以上两个阶段生成的 AST，不包含任何的语法错误。 中间代码生成 &amp; 机器码生成 都属于 compile backend。 2.4.1 中间代码中间代码是 编译器 或者 虚拟机 使用的语言，它可以用来帮组我们分析计算机程序。 在编译过程中">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2.4 编译原理 -- SSA中间代码生成">
+<meta property="og:url" content="http://example.com/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="2.4 中间代码生成词法、语法分析 &amp; 类型检查 都属于 compile frontend，负责对源码进行分析并检查其中存在的词法和语法错误 经过以上两个阶段生成的 AST，不包含任何的语法错误。 中间代码生成 &amp; 机器码生成 都属于 compile backend。 2.4.1 中间代码中间代码是 编译器 或者 虚拟机 使用的语言，它可以用来帮组我们分析计算机程序。 在编译过程中">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/golang-keyword-and-builtin-mapping.png">
+<meta property="og:image" content="http://example.com/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/go_compile_ssa_sample.png">
+<meta property="article:published_time" content="2021-12-30T15:13:45.000Z">
+<meta property="article:modified_time" content="2021-12-30T15:23:45.804Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go语言设计与实现》">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/golang-keyword-and-builtin-mapping.png">
+  
+  
+  <title>2.4 编译原理 -- SSA中间代码生成 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="2.4 编译原理 -- SSA中间代码生成">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-30 23:13" pubdate>
+        2021年12月30日 晚上
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      17k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      138 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">2.4 编译原理 -- SSA中间代码生成</h1>
+            
+            <div class="markdown-body">
+              <h2><span id="24-中间代码生成">2.4 中间代码生成</span></h2><p>词法、语法分析 &amp; 类型检查 都属于 compile frontend，负责对源码进行分析并检查其中存在的词法和语法错误</p>
+<p>经过以上两个阶段生成的 AST，不包含任何的语法错误。</p>
+<p>中间代码生成 &amp; 机器码生成 都属于 compile backend。</p>
+<h3><span id="241-中间代码">2.4.1 中间代码</span></h3><p>中间代码是 编译器 或者 虚拟机 使用的语言，它可以用来帮组我们分析计算机程序。</p>
+<p>在编译过程中，编译器会在将源代码转换到机器码的过程中，先把源代码转换成一种中间的表示形式 – 中间代码</p>
+<p>设计优点：</p>
+<ol>
+<li>更接近机器语言的表现形式，易于分析</li>
+<li>编译器需要对接到多种平台，要翻译成多种机器码，通过添加 中间代码 简化了这一过程</li>
+<li>源代码 -&gt; ASt -&gt; 中间代码（适配多种平台, 架构） -&gt; 机器码</li>
+<li>对 中间代码 的优化和分析，相比于 机器语言 要简单。如：golang compile 在生成 中间码时，通过了 SSA 这一特性进行了优化</li>
+</ol>
+<h4><span id="golang-compile-中间码生成的-入口">golang compile 中间码生成的 入口</span></h4><p>编译器主函数 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/d902791b509b641683d4ec58b282180c56918aec/src/cmd/compile/internal/gc/main.go#L148">src/cmd/compile/internal/gc.Main()</a> 中关于 中间代码生成 的代码如下；其主要逻辑为：</p>
+<ol>
+<li>通过 gc.initssaconfig() 初始化 SSA 生成的配置</li>
+<li>调用 gc.funccompile() 函数 生成 中间代码</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">Main</span><span class="hljs-params">(archInit <span class="hljs-keyword">func</span>(*Arch)</span>)</span> &#123;<br>	<br>	...<br>	<br>    <span class="hljs-comment">// Prepare for SSA compilation.</span><br>	<span class="hljs-comment">// This must be before peekitabs, because peekitabs</span><br>	<span class="hljs-comment">// can trigger function compilation.</span><br>	initssaconfig()<br><br>	<span class="hljs-comment">// Just before compilation, compile itabs found on</span><br>	<span class="hljs-comment">// the right side of OCONVIFACE so that methods</span><br>	<span class="hljs-comment">// can be de-virtualized during compilation.</span><br>	Curfn = <span class="hljs-literal">nil</span><br>	peekitabs()<br><br>	<span class="hljs-comment">// Phase 8: Compile top level functions.</span><br>	<span class="hljs-comment">// Don&#x27;t use range--walk can add functions to xtop.</span><br>	timings.Start(<span class="hljs-string">&quot;be&quot;</span>, <span class="hljs-string">&quot;compilefuncs&quot;</span>)<br>	fcount = <span class="hljs-number">0</span><br>	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; <span class="hljs-built_in">len</span>(xtop); i++ &#123;<br>		n := xtop[i]<br>		<span class="hljs-keyword">if</span> n.Op == ODCLFUNC &#123;<br>			funccompile(n)<br>			fcount++<br>		&#125;<br>	&#125;<br>	timings.AddEvent(fcount, <span class="hljs-string">&quot;funcs&quot;</span>)<br><br>	compileFunctions()<br>    <br>    ...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+
+<h3><span id="242-配置初始化">2.4.2 配置初始化</span></h3><p>gc.initssaconfig() 函数初始化了 SSA配置，进行了 中间代码生成 之前的准备工作：</p>
+<ol>
+<li>初始化结构体 ssa.Type, 缓存可能会用到的类型指针</li>
+<li>初始化 SSA配置 以及 可能会用到的 runtime 函数</li>
+<li>根据当前编译的架构、设备信息，初始化特定的 ABI（Application Binary Interface 应用二进制接口）</li>
+</ol>
+<p>源码如下：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// gc.initssaconfig()</span><br>func initssaconfig() &#123;<br>    <span class="hljs-comment">// 1. 初始化结构体 ssa.Types</span><br>	types_ := ssa<span class="hljs-selector-class">.NewTypes</span>()<br><br>	<span class="hljs-keyword">if</span> thearch<span class="hljs-selector-class">.SoftFloat</span> &#123;<br>		softfloatInit()<br>	&#125;<br>    <br>    <span class="hljs-comment">// 1. 调用 types.NewPtr() 缓存 可能会用到的 类型指针</span><br>	<span class="hljs-comment">// Generate a few pointer types that are uncommon in the frontend but common in the backend.</span><br>	<span class="hljs-comment">// Caching is disabled in the backend, so generating these here avoids allocations.</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TINTER]</span>)                             <span class="hljs-comment">// *interface&#123;&#125;</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TSTRING]</span>))              <span class="hljs-comment">// **string</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewSlice</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TINTER]</span>))             <span class="hljs-comment">// *[]interface&#123;&#125;</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewPtr</span>(types.Bytetype))                    <span class="hljs-comment">// **byte</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewSlice</span>(types.Bytetype))                  <span class="hljs-comment">// *[]byte</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewSlice</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TSTRING]</span>))            <span class="hljs-comment">// *[]string</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TUINT8]</span>))) <span class="hljs-comment">// ***uint8</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TINT16]</span>)                             <span class="hljs-comment">// *int16</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types<span class="hljs-selector-class">.Types</span><span class="hljs-selector-attr">[TINT64]</span>)                             <span class="hljs-comment">// *int64</span><br>	_ = types<span class="hljs-selector-class">.NewPtr</span>(types.Errortype)                                 <span class="hljs-comment">// *error</span><br>	types<span class="hljs-selector-class">.NewPtrCacheEnabled</span> = false<br>	<br>	<span class="hljs-comment">// 2. 通过 ssa.NewConfig() 初始化 SSA 配置，需要传入：</span><br>	<span class="hljs-comment">// CPU 架构、ssa.Types 结构体、上下文信息、debug 配置</span><br>	ssaConfig = ssa<span class="hljs-selector-class">.NewConfig</span>(thearch<span class="hljs-selector-class">.LinkArch</span><span class="hljs-selector-class">.Name</span>, *types_, Ctxt, Debug<span class="hljs-selector-class">.N</span> == <span class="hljs-number">0</span>)<br>	ssaConfig<span class="hljs-selector-class">.SoftFloat</span> = thearch<span class="hljs-selector-class">.SoftFloat</span><br>	ssaConfig<span class="hljs-selector-class">.Race</span> = flag_race<br>	ssaCaches = make(<span class="hljs-selector-attr">[]</span>ssa<span class="hljs-selector-class">.Cache</span>, nBackendWorkers)<br>    <br>    <span class="hljs-comment">// 2. 初始化 可能会用到的 运行时函数</span><br>	<span class="hljs-comment">// Set up some runtime functions we&#x27;ll need to call.</span><br>	assertE2I = sysfunc(<span class="hljs-string">&quot;assertE2I&quot;</span>)<br>    ......<br>	deferproc = sysfunc(<span class="hljs-string">&quot;deferproc&quot;</span>)            <span class="hljs-comment">// defer() func</span><br>	deferprocStack = sysfunc(<span class="hljs-string">&quot;deferprocStack&quot;</span>)<br>	......<br>	gcWriteBarrier = sysfunc(<span class="hljs-string">&quot;gcWriteBarrier&quot;</span>)<br>	goschedguarded = sysfunc(<span class="hljs-string">&quot;goschedguarded&quot;</span>)<br>	growslice = sysfunc(<span class="hljs-string">&quot;growslice&quot;</span>)            <span class="hljs-comment">// slice grow</span><br>    ......<br>	newobject = sysfunc(<span class="hljs-string">&quot;newobject&quot;</span>)<br>	newproc = sysfunc(<span class="hljs-string">&quot;newproc&quot;</span>)                <span class="hljs-comment">// new() func</span><br>	panicdivide = sysfunc(<span class="hljs-string">&quot;panicdivide&quot;</span>)        <span class="hljs-comment">// panic() func</span><br>	......<br>	x86HasPOPCNT = sysvar(<span class="hljs-string">&quot;x86HasPOPCNT&quot;</span>)       <span class="hljs-comment">// bool</span><br>	x86HasSSE41 = sysvar(<span class="hljs-string">&quot;x86HasSSE41&quot;</span>)         <span class="hljs-comment">// bool</span><br>	x86HasFMA = sysvar(<span class="hljs-string">&quot;x86HasFMA&quot;</span>)             <span class="hljs-comment">// bool</span><br>	armHasVFPv4 = sysvar(<span class="hljs-string">&quot;armHasVFPv4&quot;</span>)         <span class="hljs-comment">// bool</span><br>	arm64HasATOMICS = sysvar(<span class="hljs-string">&quot;arm64HasATOMICS&quot;</span>) <span class="hljs-comment">// bool</span><br>	typedmemclr = sysfunc(<span class="hljs-string">&quot;typedmemclr&quot;</span>)<br>	typedmemmove = sysfunc(<span class="hljs-string">&quot;typedmemmove&quot;</span>)<br>	Udiv = sysvar(<span class="hljs-string">&quot;udiv&quot;</span>)                 <span class="hljs-comment">// asm func with special ABI</span><br>	writeBarrier = sysvar(<span class="hljs-string">&quot;writeBarrier&quot;</span>) <span class="hljs-comment">// struct &#123; bool; ... &#125;</span><br>	zerobaseSym = sysvar(<span class="hljs-string">&quot;zerobase&quot;</span>)<br>    <br>    <span class="hljs-comment">// 3. 根据当前编译的架构、设备信息，初始化特定的 ABI</span><br>	<span class="hljs-comment">// asm funcs with special ABI</span><br>	<span class="hljs-keyword">if</span> thearch<span class="hljs-selector-class">.LinkArch</span><span class="hljs-selector-class">.Name</span> == <span class="hljs-string">&quot;amd64&quot;</span> &#123;<br>	    <span class="hljs-comment">// amd64 x86</span><br>		GCWriteBarrierReg = map<span class="hljs-selector-attr">[int16]</span>*obj.LSym&#123;<br>			x86<span class="hljs-selector-class">.REG_AX</span>: sysfunc(<span class="hljs-string">&quot;gcWriteBarrier&quot;</span>),<br>            ......<br>		&#125;<br>	&#125;<br>    <span class="hljs-comment">// wsam</span><br>	<span class="hljs-keyword">if</span> thearch<span class="hljs-selector-class">.LinkArch</span><span class="hljs-selector-class">.Family</span> == sys<span class="hljs-selector-class">.Wasm</span> &#123;<br>		BoundsCheckFunc<span class="hljs-selector-attr">[ssa.BoundsIndex]</span> = sysfunc(<span class="hljs-string">&quot;goPanicIndex&quot;</span>)<br>        ......<br>	&#125; <span class="hljs-keyword">else</span> &#123;<br>	    <span class="hljs-comment">// 非 wsam </span><br>		BoundsCheckFunc<span class="hljs-selector-attr">[ssa.BoundsIndex]</span> = sysfunc(<span class="hljs-string">&quot;panicIndex&quot;</span>)<br>        ......<br>	&#125;<br>	<span class="hljs-keyword">if</span> thearch<span class="hljs-selector-class">.LinkArch</span><span class="hljs-selector-class">.PtrSize</span> == <span class="hljs-number">4</span> &#123;<br>		ExtendCheckFunc<span class="hljs-selector-attr">[ssa.BoundsIndex]</span> = sysvar(<span class="hljs-string">&quot;panicExtendIndex&quot;</span>)<br>        ......<br>	&#125;<br><br>	<span class="hljs-comment">// Wasm (all asm funcs with special ABIs)</span><br>	WasmMove = sysvar(<span class="hljs-string">&quot;wasmMove&quot;</span>)<br>	WasmZero = sysvar(<span class="hljs-string">&quot;wasmZero&quot;</span>)<br>	WasmDiv = sysvar(<span class="hljs-string">&quot;wasmDiv&quot;</span>)<br>	WasmTruncS = sysvar(<span class="hljs-string">&quot;wasmTruncS&quot;</span>)<br>	WasmTruncU = sysvar(<span class="hljs-string">&quot;wasmTruncU&quot;</span>)<br>	SigPanic = sysfunc(<span class="hljs-string">&quot;sigpanic&quot;</span>)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="ssanewtypes-对-ssatypes-结构体的初始化">ssa.NewTypes() 对 ssa.Types 结构体的初始化</span></h4><p>初始化的第一步就调用了 ssa.NewTypes() 对结构体 ssa.Types 进行了初始化：</p>
+<ol>
+<li>new() 创建 ssa.Types 结构体</li>
+<li>通过 SetTypPtrs() 填充/缓存 类型信息</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// NewTypes creates and populates a Types.</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">NewTypes</span><span class="hljs-params">()</span> *<span class="hljs-title">Types</span></span> &#123;<br>	t := <span class="hljs-built_in">new</span>(Types)<br>	t.SetTypPtrs()<br>	<span class="hljs-keyword">return</span> t<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>ssa.Types 结构体定义为：包含了 golang 基本类型对应的指针</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs elm"><span class="hljs-keyword">type</span> <span class="hljs-type">Types</span> struct &#123;<br>	<span class="hljs-type">Bool</span>       *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Int8</span>       *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Int16</span>      *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Int32</span>      *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Int64</span>      *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt8</span>      *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt16</span>     *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt32</span>     *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt64</span>     *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Int</span>        *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Float32</span>    *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Float64</span>    *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt</span>       *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Uintptr</span>    *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">String</span>     *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">BytePtr</span>    *types.<span class="hljs-type">Type</span> // <span class="hljs-type">TODO</span>: use unsafe.<span class="hljs-type">Pointer</span> instead?<br>	<span class="hljs-type">Int32Ptr</span>   *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UInt32Ptr</span>  *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">IntPtr</span>     *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">UintptrPtr</span> *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Float32Ptr</span> *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">Float64Ptr</span> *types.<span class="hljs-type">Type</span><br>	<span class="hljs-type">BytePtrPtr</span> *types.<span class="hljs-type">Type</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>SetTypPtrs() 函数具体实现：</p>
+<ol>
+<li>基础类型如：Bool, Int, String 等，使用了默认的 types.TBOOL 等进行了填充</li>
+<li>指针类型如：BytePtr, IntPtr 等，调用 types.NewPtr() 生成对应类型的指针<figure class="highlight pgsql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs pgsql">// SetTypPtrs populates t.<br>func (t *<span class="hljs-keyword">Types</span>) SetTypPtrs() &#123;<br>	t.Bool = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TBOOL]<br>	t.Int8 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT8]<br>	t.Int16 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT16]<br>	t.Int32 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT32]<br>	t.Int64 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT64]<br>	t.UInt8 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT8]<br>	t.UInt16 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT16]<br>	t.UInt32 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT32]<br>	t.UInt64 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT64]<br>	t.Int = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT]<br>	t.Float32 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TFLOAT32]<br>	t.Float64 = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TFLOAT64]<br>	t.UInt = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT]<br>	t.Uintptr = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINTPTR]<br>	t.String = <span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TSTRING]<br>	t.BytePtr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT8])<br>	t.Int32Ptr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT32])<br>	t.UInt32Ptr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT32])<br>	t.IntPtr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TINT])<br>	t.UintptrPtr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINTPTR])<br>	t.Float32Ptr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TFLOAT32])<br>	t.Float64Ptr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TFLOAT64])<br>	t.BytePtrPtr = <span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.NewPtr(<span class="hljs-keyword">types</span>.<span class="hljs-keyword">Types</span>[<span class="hljs-keyword">types</span>.TUINT8]))<br>&#125;<br></code></pre></td></tr></table></figure></li>
+</ol>
+<p>types.NewPtr() 函数实现如下：</p>
+<ol>
+<li>根据传入的类型 生成 指向目标类型的指针</li>
+<li>编译器配置 NewPtrCacheEnabled = true 时，会将 生成的指针类型 缓存到 当前类型中，优化类型指针的获取效率</li>
+</ol>
+<figure class="highlight isbl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs isbl"><span class="hljs-comment">// NewPtr returns the pointer type pointing to t.</span><br><span class="hljs-variable">func</span> <span class="hljs-function"><span class="hljs-title">NewPtr</span>(<span class="hljs-variable">elem</span> *<span class="hljs-variable">Type</span>) *<span class="hljs-variable">Type</span> &#123;</span><br><span class="hljs-function">	<span class="hljs-variable"><span class="hljs-keyword">if</span></span> <span class="hljs-variable">elem</span> == <span class="hljs-variable"><span class="hljs-literal">nil</span></span> &#123;</span><br><span class="hljs-function">		<span class="hljs-title">Fatalf</span>(<span class="hljs-string">&quot;NewPtr: pointer to elem Type is nil&quot;</span>)</span><br>	&#125;<br><br>	<span class="hljs-variable"><span class="hljs-keyword">if</span></span> <span class="hljs-variable">t</span> := <span class="hljs-variable">elem.Cache.ptr</span>; <span class="hljs-variable">t</span> <span class="hljs-variable">!</span>= <span class="hljs-variable"><span class="hljs-literal">nil</span></span> &#123;<br>		<span class="hljs-variable"><span class="hljs-keyword">if</span></span> <span class="hljs-variable">t.Elem</span>() <span class="hljs-variable">!</span>= <span class="hljs-variable">elem</span> &#123;<br>			<span class="hljs-function"><span class="hljs-title">Fatalf</span>(<span class="hljs-string">&quot;NewPtr: elem mismatch&quot;</span>)</span><br>		&#125;<br>		<span class="hljs-variable">return</span> <span class="hljs-variable">t</span><br>	&#125;<br><br>	<span class="hljs-variable">t</span> := <span class="hljs-function"><span class="hljs-title">New</span>(<span class="hljs-variable">TPTR</span>)</span><br>	<span class="hljs-variable">t.Extra</span> = <span class="hljs-variable">Ptr</span>&#123;<span class="hljs-variable">Elem</span>: <span class="hljs-variable">elem</span>&#125;<br>	<span class="hljs-variable">t.Width</span> = <span class="hljs-function"><span class="hljs-title">int64</span>(<span class="hljs-variable">Widthptr</span>)</span><br>	<span class="hljs-variable">t.Align</span> = <span class="hljs-function"><span class="hljs-title">uint8</span>(<span class="hljs-variable">Widthptr</span>)</span><br>	<br>	<span class="hljs-comment">// 是否 缓存</span><br>	<span class="hljs-variable"><span class="hljs-keyword">if</span></span> <span class="hljs-variable">NewPtrCacheEnabled</span> &#123;<br>		<span class="hljs-variable">elem.Cache.ptr</span> = <span class="hljs-variable">t</span><br>	&#125;<br>	<span class="hljs-variable">return</span> <span class="hljs-variable">t</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="ssa-配置-amp-runtime-func-初始化">ssa 配置 &amp; runtime func 初始化</span></h4><p>ssa 配置初始化，调用了  <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/15f01d6ae9853fd51ee8842d9af93d04ce25458c/src/cmd/compile/internal/ssa/config.go#L208">cmd/compile/internal/ssa.NewConfig()</a></p>
+<p>根据传入的 CPU 架构等配置 设置用于生成中间代码和机器码的函数，当前编译器使用的指针、寄存器大小、可用寄存器列表、掩码等编译选项：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// NewConfig returns a new configuration object for the given architecture.</span><br>func NewConfig(arch string, types Types, ctxt *obj<span class="hljs-selector-class">.Link</span>, optimize bool) *Config &#123;<br>    <span class="hljs-comment">// 初始化 Config 结构体</span><br>	c := &amp;Config&#123;arch: arch, Types: types&#125;<br>	c<span class="hljs-selector-class">.useAvg</span> = true<br>	c<span class="hljs-selector-class">.useHmul</span> = true<br>	<span class="hljs-comment">// 根据架构不通，设定不同配置</span><br>	switch arch &#123;<br>	case <span class="hljs-string">&quot;amd64&quot;</span>:<br>		c<span class="hljs-selector-class">.PtrSize</span> = <span class="hljs-number">8</span>   <span class="hljs-comment">// 指针大小</span><br>		c<span class="hljs-selector-class">.RegSize</span> = <span class="hljs-number">8</span>   <span class="hljs-comment">// 寄存器大小</span><br>		c<span class="hljs-selector-class">.lowerBlock</span> = rewriteBlockAMD64<br>		c<span class="hljs-selector-class">.lowerValue</span> = rewriteValueAMD64<br>		c<span class="hljs-selector-class">.splitLoad</span> = rewriteValueAMD64splitload<br>		c<span class="hljs-selector-class">.registers</span> = registersAMD64<span class="hljs-selector-attr">[:]</span><br>		c<span class="hljs-selector-class">.gpRegMask</span> = gpRegMaskAMD64<br>		c<span class="hljs-selector-class">.fpRegMask</span> = fpRegMaskAMD64<br>		c<span class="hljs-selector-class">.FPReg</span> = framepointerRegAMD64<br>		c<span class="hljs-selector-class">.LinkReg</span> = linkRegAMD64<br>		c<span class="hljs-selector-class">.hasGReg</span> = false<br>	case <span class="hljs-string">&quot;386&quot;</span>:<br>        <span class="hljs-comment">// 386 架构</span><br>        .....<br>	case <span class="hljs-string">&quot;arm&quot;</span>:<br>		<span class="hljs-comment">// arm</span><br>		......<br>	case <span class="hljs-string">&quot;arm64&quot;</span>:<br>		<span class="hljs-comment">// arm64</span><br>	    ......<br>    ......<br>	default:<br>		ctxt<span class="hljs-selector-class">.Diag</span>(<span class="hljs-string">&quot;arch %s not implemented&quot;</span>, arch)<br>	&#125;<br>	<span class="hljs-comment">// 上下文</span><br>	c<span class="hljs-selector-class">.ctxt</span> = ctxt<br>	<span class="hljs-comment">// 优化选项</span><br>	c<span class="hljs-selector-class">.optimize</span> = optimize<br>	c<span class="hljs-selector-class">.useSSE</span> = true<br>	c<span class="hljs-selector-class">.UseFMA</span> = true<br><br>    ......<br><br>    <span class="hljs-comment">// GC 寄存器配置</span><br>	<span class="hljs-comment">// Create the GC register map index.</span><br>	<span class="hljs-comment">// <span class="hljs-doctag">TODO:</span> This is only used for debug printing. Maybe export config.registers?</span><br>	gcRegMapSize := int16(<span class="hljs-number">0</span>)<br>	<span class="hljs-keyword">for</span> _, r := range c<span class="hljs-selector-class">.registers</span> &#123;<br>		<span class="hljs-keyword">if</span> r.gcNum+<span class="hljs-number">1</span> &gt; gcRegMapSize &#123;<br>			gcRegMapSize = r<span class="hljs-selector-class">.gcNum</span> + <span class="hljs-number">1</span><br>		&#125;<br>	&#125;<br>	c<span class="hljs-selector-class">.GCRegMap</span> = make(<span class="hljs-selector-attr">[]</span>*Register, gcRegMapSize)<br>	<span class="hljs-keyword">for</span> <span class="hljs-selector-tag">i</span>, r := range c<span class="hljs-selector-class">.registers</span> &#123;<br>		<span class="hljs-keyword">if</span> r<span class="hljs-selector-class">.gcNum</span> != -<span class="hljs-number">1</span> &#123;<br>			c<span class="hljs-selector-class">.GCRegMap</span><span class="hljs-selector-attr">[r.gcNum]</span> = &amp;c<span class="hljs-selector-class">.registers</span><span class="hljs-selector-attr">[i]</span><br>		&#125;<br>	&#125;<br><br>	return c<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>配置初始化完成后，通过 ssa.sysfunc() 初始化一些编译器可能用到的 runtime func，如：defer(), newproc(), growslice() 等</p>
+<figure class="highlight isbl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs isbl"><span class="hljs-comment">// func </span><br><span class="hljs-comment">// Set up some runtime functions we&#x27;ll need to call.</span><br>	...<br>	<span class="hljs-comment">// defer</span><br>	<span class="hljs-variable">deferproc</span> = <span class="hljs-function"><span class="hljs-title">sysfunc</span>(<span class="hljs-string">&quot;deferproc&quot;</span>)</span><br>	<span class="hljs-variable">deferprocStack</span> = <span class="hljs-function"><span class="hljs-title">sysfunc</span>(<span class="hljs-string">&quot;deferprocStack&quot;</span>)</span><br>	<span class="hljs-variable">Deferreturn</span> = <span class="hljs-function"><span class="hljs-title">sysfunc</span>(<span class="hljs-string">&quot;deferreturn&quot;</span>)</span><br>	...<br>	<span class="hljs-comment">// growslice</span><br>	<span class="hljs-variable">growslice</span> = <span class="hljs-function"><span class="hljs-title">sysfunc</span>(<span class="hljs-string">&quot;growslice&quot;</span>)</span><br>	...<br>	<span class="hljs-comment">// newproc</span><br>	<span class="hljs-variable">newproc</span> = <span class="hljs-function"><span class="hljs-title">sysfunc</span>(<span class="hljs-string">&quot;newproc&quot;</span>)</span><br>	...<br></code></pre></td></tr></table></figure>
+
+
+<h4><span id="gcfuncccompile-调用链">gc.funcccompile() 调用链</span></h4><p>ssa 相关配置初始化完成后，将调用 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/912262b806a432a29302e0cee45e4f42ef7038a2/src/cmd/compile/internal/gc/pgen.go#L195">cmd/compile/internal/gc.funccompile ()</a> 针对每一个源文件生成 中间代码</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-comment">// gc.funccompile()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">funccompile</span>(fn <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span> &#123;<br>	<span class="hljs-operator">......</span><br><br>	dclcontext <span class="hljs-operator">=</span> <span class="hljs-type">PAUTO</span><br>	<span class="hljs-type">Curfn</span> <span class="hljs-operator">=</span> fn<br>    <br>    <span class="hljs-comment">// 实际调用了 gc.compile()</span><br>	compile(fn)<br><br>	<span class="hljs-type">Curfn</span> <span class="hljs-operator">=</span> <span class="hljs-literal">nil</span><br>	dclcontext <span class="hljs-operator">=</span> <span class="hljs-type">PEXTERN</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/912262b806a432a29302e0cee45e4f42ef7038a2/src/cmd/compile/internal/gc/pgen.go#L226">cmd/compile/internal/gc.compile()</a> 函数的逻辑较为复杂：</p>
+<ol>
+<li>调用 gc.walk() 遍历 AST 中的节点，同时将 关键字 和 内建函数转换成 函数调用</li>
+<li>调用 gc.compileSSA() 将 AST 转换成 中间代码</li>
+</ol>
+<figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs armasm"><span class="hljs-symbol">func</span> compile(<span class="hljs-meta">fn</span> *Node) &#123;<br><br>    ......<br><br>    <span class="hljs-comment">// 遍历 &amp; 替换</span><br>	walk(<span class="hljs-meta">fn</span>)<br>	<span class="hljs-meta">if</span> nerrors != <span class="hljs-number">0</span> &#123;<br>		return<br>	&#125;<br>	<span class="hljs-meta">if</span> instrumenting &#123;<br>		instrument(<span class="hljs-meta">fn</span>)<br>	&#125;<br><br>    ......<br><br>	<span class="hljs-meta">if</span> compilenow(<span class="hljs-meta">fn</span>) &#123;<br>	    <span class="hljs-comment">// AST 转换为 SSA 中间代码</span><br>		compileSSA(<span class="hljs-meta">fn</span>, <span class="hljs-number">0</span>)<br>	&#125; <span class="hljs-meta">else</span> &#123;<br>		compilequeue = append(compilequeue, <span class="hljs-meta">fn</span>)<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3><span id="243-遍历和替换">2.4.3 遍历和替换</span></h3><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/walk.go#L21">cmd/compile/internal/gc.walk()</a> 遍历了 AST 的全部节点，将 关键字 和 内联函数 替换为 函数调用。</p>
+<p>walk() 和相关函数的定义如下所示：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walk</span>(fn <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span><br><span class="hljs-comment">// append()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkappend</span>(n <span class="hljs-operator">*</span><span class="hljs-type">Node</span>, <span class="hljs-keyword">init</span> <span class="hljs-operator">*</span><span class="hljs-type">Nodes</span>, dst <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span> <span class="hljs-operator">*</span><span class="hljs-type">Node</span><br><span class="hljs-operator">...</span><br><span class="hljs-comment">// range</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkrange</span>(n <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span> <span class="hljs-operator">*</span><span class="hljs-type">Node</span><br><span class="hljs-comment">// select</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkselect</span>(sel <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span><br><span class="hljs-comment">// select case</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkselectcases</span>(cases <span class="hljs-operator">*</span><span class="hljs-type">Nodes</span>)</span> []<span class="hljs-operator">*</span><span class="hljs-type">Node</span><br><span class="hljs-comment">// statement</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkstmt</span>(n <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span> <span class="hljs-operator">*</span><span class="hljs-type">Node</span><br><span class="hljs-comment">// statement list</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkstmtlist</span>(s []<span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span><br><span class="hljs-comment">// switch case</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkswitch</span>(sw <span class="hljs-operator">*</span><span class="hljs-type">Node</span>)</span><br></code></pre></td></tr></table></figure>
+
+<p>关键字、操作符 到 runtime func 的映射关系，如下图所示：</p>
+<img src="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/golang-keyword-and-builtin-mapping.png" srcset="/img/loading.gif" lazyload class title="映射关系">
+
+<p>映射后的函数的<strong>定义</strong>位于 运行时包： <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/dev.boringcrypto.go1.15/src/cmd/compile/internal/gc/builtin/runtime.go">src/cmd/compile/internal/gc/builtin/runtime.go</a> ：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// map</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">makemap64</span><span class="hljs-params">(mapType *<span class="hljs-keyword">byte</span>, hint <span class="hljs-keyword">int64</span>, mapbuf *any)</span> <span class="hljs-params">(hmap <span class="hljs-keyword">map</span>[any]any)</span></span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">makemap</span><span class="hljs-params">(mapType *<span class="hljs-keyword">byte</span>, hint <span class="hljs-keyword">int</span>, mapbuf *any)</span> <span class="hljs-params">(hmap <span class="hljs-keyword">map</span>[any]any)</span></span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">makemap_small</span><span class="hljs-params">()</span> <span class="hljs-params">(hmap <span class="hljs-keyword">map</span>[any]any)</span></span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">mapaccess1</span><span class="hljs-params">(mapType *<span class="hljs-keyword">byte</span>, hmap <span class="hljs-keyword">map</span>[any]any, key *any)</span> <span class="hljs-params">(val *any)</span></span><br>...<br><span class="hljs-comment">// channel</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">makechan64</span><span class="hljs-params">(chanType *<span class="hljs-keyword">byte</span>, size <span class="hljs-keyword">int64</span>)</span> <span class="hljs-params">(hchan <span class="hljs-keyword">chan</span> any)</span></span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">makechan</span><span class="hljs-params">(chanType *<span class="hljs-keyword">byte</span>, size <span class="hljs-keyword">int</span>)</span> <span class="hljs-params">(hchan <span class="hljs-keyword">chan</span> any)</span></span><br>...<br></code></pre></td></tr></table></figure>
+
+<p>相关运行时函数的实现，仍位于 <a target="_blank" rel="noopener" href="https://github.com/golang/go/tree/master/src/runtime">src/runtime</a> 包中</p>
+<p>由此可分析得到，关键字 和 内置函数的功能是由 golang compile 和 runtime 共同完成的</p>
+<p>以 channel 为例，包含了 发送消息 &amp; 接收消息 两个操作，对应到 golang compile 为 OSEND 和 ORECV，<a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/walk.go#L1562">cmd/compile/internal/gc.walkexpr()</a> 根据 操作类型 的不同，进入到不同的分支：</p>
+<ol>
+<li>OSEND：调用 gc.makecall1() 创建一个 OCALL 节点，这个节点包含了当前调用的 runtime.chansend1() 函数 和 参数，新的 OCALL 节点会替换当前的 OSEND 节点，完成了对  OSEND 子树的改写</li>
+<li>ORECV：同上，调用 gc.makecall1() 创建一个 包含 runtime.chanreccv1() 函数 和 参数的 OCALL 节点，替换 ORECV 节点，完成对 ORECV 子树的改写</li>
+<li>OCLOSE：同上，调用 gc.makecall1() 函数 创建一个包含 runtime.closechan() 函数 和参数的 OCALL 节点，替换 OCLOSE 节点</li>
+</ol>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">walkexpr</span>(n <span class="hljs-operator">*</span><span class="hljs-type">Node</span>, <span class="hljs-keyword">init</span> <span class="hljs-operator">*</span><span class="hljs-type">Nodes</span>)</span> <span class="hljs-operator">*</span><span class="hljs-type">Node</span> &#123;<br>	<span class="hljs-operator">...</span><br>	<span class="hljs-keyword">case</span> <span class="hljs-type">OSEND</span>:<br>	    <span class="hljs-comment">// c &lt;- x;</span><br>		n1 :<span class="hljs-operator">=</span> n.<span class="hljs-type">Right</span><br>		n1 <span class="hljs-operator">=</span> assignconv(n1, n.<span class="hljs-type">Left</span>.<span class="hljs-keyword">Type</span>.<span class="hljs-type">Elem</span>(), <span class="hljs-string">&quot;chan send&quot;</span>)<br>		n1 <span class="hljs-operator">=</span> walkexpr(n1, <span class="hljs-keyword">init</span>)<br>		n1 <span class="hljs-operator">=</span> nod(<span class="hljs-type">OADDR</span>, n1, <span class="hljs-literal">nil</span>)<br>		n <span class="hljs-operator">=</span> mkcall1(chanfn(<span class="hljs-string">&quot;chansend1&quot;</span>, <span class="hljs-number">2</span>, n.<span class="hljs-type">Left</span>.<span class="hljs-keyword">Type</span>), <span class="hljs-literal">nil</span>, <span class="hljs-keyword">init</span>, n.<span class="hljs-type">Left</span>, n1)<br>	<span class="hljs-operator">...</span><br>	<br>	<span class="hljs-keyword">case</span> <span class="hljs-type">ORECV</span>:<br>    	<span class="hljs-comment">// x = &lt;-c; n.Left is x, n.Right.Left is c.</span><br>    	<span class="hljs-comment">// order.stmt made sure x is addressable.</span><br>    	n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span> <span class="hljs-operator">=</span> walkexpr(n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span>, <span class="hljs-keyword">init</span>)<br>    <br>    	n1 :<span class="hljs-operator">=</span> nod(<span class="hljs-type">OADDR</span>, n.<span class="hljs-type">Left</span>, <span class="hljs-literal">nil</span>)<br>    	r :<span class="hljs-operator">=</span> n.<span class="hljs-type">Right</span>.<span class="hljs-type">Left</span> <span class="hljs-comment">// the channel</span><br>    	n <span class="hljs-operator">=</span> mkcall1(chanfn(<span class="hljs-string">&quot;chanrecv1&quot;</span>, <span class="hljs-number">2</span>, r.<span class="hljs-keyword">Type</span>), <span class="hljs-literal">nil</span>, <span class="hljs-keyword">init</span>, r, n1)<br>    	n <span class="hljs-operator">=</span> walkexpr(n, <span class="hljs-keyword">init</span>)<br>    	<span class="hljs-keyword">break</span> opswitch<br>    <br>    <span class="hljs-operator">......</span><br>    <span class="hljs-keyword">case</span> <span class="hljs-type">OCLOSE</span>:<br>		fn :<span class="hljs-operator">=</span> syslook(<span class="hljs-string">&quot;closechan&quot;</span>)<br><br>		fn <span class="hljs-operator">=</span> substArgTypes(fn, n.<span class="hljs-type">Left</span>.<span class="hljs-keyword">Type</span>)<br>		n <span class="hljs-operator">=</span> mkcall1(fn, <span class="hljs-literal">nil</span>, <span class="hljs-keyword">init</span>, n.<span class="hljs-type">Left</span>)<br>	<br>	<span class="hljs-operator">......</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>编译器会在编译期间 将 channel 的内置操作（接收、发送、关闭等）转换成对应的 运行时函数，runtime 包中的 chanrecv1() chansend1() 以及 closechan() 分别在<strong>底层实现</strong>了 Channel 的接收、发送、关闭操作</p>
+<h3><span id="244-ssa-生成">2.4.4 ssa 生成</span></h3><p>walk() 函数对 关键字、内置函数 进行了替换后，AST 将不会再改变，随后会调用 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/da54dfb6a1f3bef827b9ec3780c98fde77a97d11/src/cmd/compile/internal/gc/pgen.go#L318">cmd/compile/internal/gc.compileSSA()</a> 将其转换为 中间代码。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// gc.compileSSA()</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">compileSSA</span><span class="hljs-params">(fn *Node, worker <span class="hljs-keyword">int</span>)</span></span> &#123;<br>    <span class="hljs-comment">// gc.buildssa() 生成具有 SSA 特性的中间代码</span><br>	f := buildssa(fn, worker)<br>	<span class="hljs-comment">// 初始化结构体 gc.Progs，用于存放 新生成的 SSA 中间代码</span><br>	pp := newProgs(fn, worker)<br>	<span class="hljs-keyword">defer</span> pp.Free()<br>	<br>	<span class="hljs-comment">// genssa() 将生成的 SSA 中间代码存入到 gc.Progs</span><br>	genssa(f, pp)<br><br>	pp.Flush()<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>gc.buildssa() 负责生成具有 SSA 特性的中间代码，为了易于理解其具体执行过程，我们使用 go build 命令观察中间代码的生成过程。示例源代码如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">package</span> hello<br><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">hello</span><span class="hljs-params">(a <span class="hljs-keyword">int</span>)</span> <span class="hljs-title">int</span></span> &#123;<br>	c := a + <span class="hljs-number">2</span><br>	<span class="hljs-keyword">return</span> c<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通过以下命令对其进行 build，将过程中进行的几十次迭代 保存到 ssa.html 中：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// 指定 GOSSAFUNCC=hello</span><br>GOSSAFUNC=hello <span class="hljs-keyword">go</span> build hello.<span class="hljs-keyword">go</span><br></code></pre></td></tr></table></figure>
+
+<p>最左侧是 源代码；中间过程是 源代码生成的 AST；经过了 number lines 等 几十轮 步骤后，最后生成了 ssa 中间代码。</p>
+<p>如下图所示：</p>
+<img src="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/go_compile_ssa_sample.png" srcset="/img/loading.gif" lazyload class title="SSA中间代码生成示例">
+
+<p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/41d8e61a6b9d8f9db912626eb2bbc535e929fefc/src/cmd/compile/internal/gc/ssa.go#L290">src/cmd/compile/internal/gc.buildssa()</a> 简化逻辑如下：</p>
+<ol>
+<li>通过 gc.state.stmtList() 将 AST 转换为 中间代码</li>
+<li>通过 ssa.Compile() 经过几十轮的迭代 更新 SSA 中间代码(ssa 优化)</li>
+</ol>
+<figure class="highlight roboconf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs roboconf">// gc.buildssa()<br>func buildssa(fn *Node, worker int) *ssa.Func &#123;<br>	<span class="hljs-attribute">name</span> := fn<span class="hljs-variable">.funcname</span>()<br>	var astBuf *bytes<span class="hljs-variable">.Buffer</span><br>	var s state<br>    <br>    ......<br>    <br>	fe := ssafn&#123;<br>		curfn: fn,<br>		log:   printssa &amp;&amp; ssaDumpStdout,<br>	&#125;<br>	s<span class="hljs-variable">.curfn</span> = fn<br>    <br>    ......<br><br>	s<span class="hljs-variable">.f</span> = ssa<span class="hljs-variable">.NewFunc</span>(&amp;fe)<br>	s<span class="hljs-variable">.config</span> = ssaConfig<br>	s<span class="hljs-variable">.f</span><span class="hljs-variable">.Type</span> = fn<span class="hljs-variable">.Type</span><br>	s<span class="hljs-variable">.f</span><span class="hljs-variable">.Config</span> = ssaConfig<br><br>	......<br>    <br>    // 1. gc<span class="hljs-variable">.state</span><span class="hljs-variable">.stmtList</span>() 分别将 Func 和 Nbody 部分 转换为 中间代码<br>	s<span class="hljs-variable">.stmtList</span>(fn<span class="hljs-variable">.Func</span><span class="hljs-variable">.Enter</span>)<br>	s<span class="hljs-variable">.stmtList</span>(fn<span class="hljs-variable">.Nbody</span>)<br>    <br>    ......<br>    <br>    // 2. ssa<span class="hljs-variable">.Compile</span>() 多轮迭代，更新 SSA 中间代码<br>	ssa<span class="hljs-variable">.Compile</span>(s<span class="hljs-variable">.f</span>)<br>	<br>	// 返回生成的 ssa 中间代码<br>	return s<span class="hljs-variable">.f</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="ast-到-ssa">AST 到 SSA</span></h4><p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/91b7619310cc05c2ffa3fa558f041a3b3cf6e948/src/cmd/compile/internal/gc/ssa.go#L1042">src/cmd/compile/internal/gc.state.stmtList()</a> 将传入的数组中的每个节点转换为 中间代码。</p>
+<ol>
+<li>遍历数组中的节点</li>
+<li>调用 gc.state.stmt() 将其转换为对应的中间代码</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// stmtList converts the statement list n to SSA and adds it to s.</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(s *state)</span> <span class="hljs-title">stmtList</span><span class="hljs-params">(l Nodes)</span></span> &#123;<br>	<span class="hljs-keyword">for</span> _, n := <span class="hljs-keyword">range</span> l.Slice() &#123;<br>		s.stmt(n)<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/91b7619310cc05c2ffa3fa558f041a3b3cf6e948/src/cmd/compile/internal/gc/ssa.go#L1049">src/cmd/compile/internal/gc.state.stmt()</a> 根据节点操作符的不同，将当前的 AST 节点转换成对应的中间代码：</p>
+<ol>
+<li>switch - case 判断 AST 节点的类型，对应到几种情况：函数调用, 方法调用, defer or go 等关键字</li>
+<li>根据匹配到的节点类型，通过 gc.state.call() 生成 SSA 节点</li>
+</ol>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs coq">// gc.state.stmt()<br>// stmt converts the statement n to SSA and adds it to s.<br>func (s *state) stmt(n *Node) &#123;<br>	...<br>	// switch - <span class="hljs-built_in">case</span> 判断操作符类型<br>	switch n.Op &#123;<br>	<span class="hljs-built_in">case</span> OCALLMETH, OCALLINTER:<br>		s.call(n, callNormal)<br>		<span class="hljs-keyword">if</span> n.Op == OCALLFUNC &amp;&amp; n.<span class="hljs-keyword">Left</span>.Op == ONAME &amp;&amp; n.<span class="hljs-keyword">Left</span>.<span class="hljs-keyword">Class</span>() == PFUNC &#123;<br>			<span class="hljs-keyword">if</span> fn := n.<span class="hljs-keyword">Left</span>.Sym.Name; compiling_runtime &amp;&amp; fn == <span class="hljs-string">&quot;throw&quot;</span> |<span class="hljs-type">|</span><br><span class="hljs-type">				n</span>.<span class="hljs-keyword">Left</span>.Sym.Pkg == Runtimepkg &amp;&amp; (fn == <span class="hljs-string">&quot;throwinit&quot;</span> |<span class="hljs-type">| fn</span> == <span class="hljs-string">&quot;gopanic&quot;</span> |<span class="hljs-type">| fn</span> == <span class="hljs-string">&quot;panicwrap&quot;</span> |<span class="hljs-type">| fn</span> == <span class="hljs-string">&quot;block&quot;</span> |<span class="hljs-type">| fn</span> == <span class="hljs-string">&quot;panicmakeslicelen&quot;</span> |<span class="hljs-type">| fn</span> == <span class="hljs-string">&quot;panicmakeslicecap&quot;</span>) &#123;<br>				m := s.mem()<br>				b := s.endBlock()<br>				b.Kind = ssa.BlockExit<br>				b.SetControl(m)<br>			&#125;<br>		&#125;<br>		// defer 关键字，将 AST 节点转换成 callDefer() 中间代码<br>		s.call(n.<span class="hljs-keyword">Left</span>, callDefer)<br>	<span class="hljs-built_in">case</span> OGO:<br>	    // go 关键字，将 AST 节点 转换成 callGo() 中间代码<br>		s.call(n.<span class="hljs-keyword">Left</span>, callGo)<br>	...<br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/41d8e61a6b9d8f9db912626eb2bbc535e929fefc/src/cmd/compile/internal/gc/ssa.go#L4537">cmd/compile/internal/gc.state.call()</a> switch - case 结构，匹配到对应的 AST 节点操作符，将其实现为静态的底层函数调用，上层的 gc.state.stmtList() 以及 gc.state.call() 只是提供了一种语法糖：</p>
+<ol>
+<li>switch - case 匹配 AST 节点的类型</li>
+<li>根据节点类型，通过 gc.state.newValue1A() 等函数 生成对应的 SSA 节点</li>
+</ol>
+<p>在 AST 到 SSA 的转化过程中，编译器首先会生成 将函数调用的参数放到栈上的中间代码，处理参数之后才回生成一条 运行函数的命令 ssa.OptionalCall()：</p>
+<ol>
+<li>defer -&gt; 插入 runtime.deferproc()</li>
+<li>go -&gt; 插入 runtime.newproc()</li>
+<li>sym != nil -&gt; 其他普通函数 -&gt; 插入 sym.Linksym() 函数符号</li>
+</ol>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs reasonml"><span class="hljs-comment">// gc.state.call()</span><br>func (s *state) call(n *Node, k callKind) *ssa.Value &#123;<span class="hljs-operator"></span><br><span class="hljs-operator">	...</span><br><span class="hljs-operator">	</span>var call *ssa.Value<br>	switch &#123;<br>	<span class="hljs-comment">// defer func()</span><br>	case k<span class="hljs-operator"> == </span>callDefer:<br>		call = s.<span class="hljs-keyword">new</span><span class="hljs-constructor">Value1A(<span class="hljs-params">ssa</span>.OpStaticCall, <span class="hljs-params">types</span>.TypeMem, <span class="hljs-params">deferproc</span>, <span class="hljs-params">s</span>.<span class="hljs-params">mem</span>()</span>)<br>	<span class="hljs-comment">// go func()</span><br>	case k<span class="hljs-operator"> == </span>callGo:<br>		call = s.<span class="hljs-keyword">new</span><span class="hljs-constructor">Value1A(<span class="hljs-params">ssa</span>.OpStaticCall, <span class="hljs-params">types</span>.TypeMem, <span class="hljs-params">newproc</span>, <span class="hljs-params">s</span>.<span class="hljs-params">mem</span>()</span>)<br>	<span class="hljs-comment">// other common func() call</span><br>	case sym != nil:<br>		call = s.<span class="hljs-keyword">new</span><span class="hljs-constructor">Value1A(<span class="hljs-params">ssa</span>.OpStaticCall, <span class="hljs-params">types</span>.TypeMem, <span class="hljs-params">sym</span>.Linksym()</span>, s.mem<span class="hljs-literal">()</span>)<br>	..<br>	&#125;<span class="hljs-operator"></span><br><span class="hljs-operator">	...</span><br><span class="hljs-operator"></span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>以 hello.go 为例，AST -&gt; SSA 过程中，before insert phis 阶段 生成的代码如下：</p>
+<figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs smali">compiling hello<br>hello func(int)<span class="hljs-built_in"> int</span><br><span class="hljs-built_in"></span>  b1:<br>    v1 = InitMem &lt;mem&gt;<br>    v2 = SP &lt;uintptr&gt;<br>    v3 = SB &lt;uintptr&gt; DEAD<br>    v4 = LocalAddr &lt;*int&gt; &#123;a&#125; v2 v1 DEAD<br>    v5 = LocalAddr &lt;*int&gt; &#123;~r1&#125; v2 v1<br>    v6 = Arg &lt;int&gt; &#123;a&#125;<br>    v7 = Const64 &lt;int&gt; [0] DEAD<br>    v8 = Const64 &lt;int&gt; [2]<br>    v9 = Add64 &lt;int&gt; v6 v8 (c[int])<br>    v10 = VarDef &lt;mem&gt; &#123;~r1&#125; v1<br>    v11 = Store &lt;mem&gt; &#123;int&#125; v5 v9 v10<br>    Ret v11<br></code></pre></td></tr></table></figure>
+
+<p>ssa.go 中有近 7000 行代码，包含了用于处理不同节点的各种方法，golang compile 根据节点类型的不同在一个 巨型 switch - case 语句中，处理不同的情况。</p>
+<h4><span id="多轮转换">多轮转换</span></h4><p>gc.state.stmtList() 以及 gc.state.stmt() 生成了 SSA 中间代码，但是仍需要 golang ccompile 在其基础上进行优化，以去掉无用代码并精简操作数。</p>
+<p>该过程由 <a target="_blank" rel="noopener" href="https://github.com/golang/go/blob/4d5bb9c60905b162da8b767a8a133f6b4edcaa65/src/cmd/compile/internal/ssa/compile.go#L29">cmd/compile/internal/ssa.Compile()</a> 执行 &amp; 实现：</p>
+<ol>
+<li>遍历 passes，逐轮进行</li>
+<li>执行 预定义的 fn() 函数，完成本轮转换</li>
+</ol>
+<figure class="highlight lasso"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs lasso"><span class="hljs-comment">// gc.state.Compile()</span><br>func Compile(f *Func) &#123;<br>    <span class="hljs-comment">// Log 信息</span><br>	<span class="hljs-keyword">if</span> f.<span class="hljs-keyword">Log</span>() &#123;<br>		f.Logf(<span class="hljs-string">&quot;compiling %s\n&quot;</span>, f.Name)<br>	&#125;<br>    <br>    <span class="hljs-params">...</span>..<br>    <br>    <span class="hljs-comment">// 当前处于 init 阶段</span><br>	phaseName := <span class="hljs-string">&quot;init&quot;</span><br>    <br>    <span class="hljs-params">...</span><span class="hljs-params">...</span><br>    <br>    <span class="hljs-comment">// 逐轮 转换</span><br>	for _, p := range passes &#123;<br>	    <span class="hljs-params">...</span><span class="hljs-params">...</span><br>	    <span class="hljs-comment">// 当前阶段</span><br>		f.pass = &amp;p<br>		<span class="hljs-comment">// 进行本轮转换</span><br>		p.fn(f)<br>		<span class="hljs-params">...</span><span class="hljs-params">...</span><br>	&#125;<br><br>	phaseName = <span class="hljs-string">&quot;&quot;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>passes 变量，存储了每一轮处理的名字、使用的函数、required 是否必要字段：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-string">var</span> <span class="hljs-string">passes</span> <span class="hljs-string">=</span> [<span class="hljs-string">...</span>]<span class="hljs-string">pass&#123;</span><br>    <span class="hljs-string">//</span> <span class="hljs-number">49</span> <span class="hljs-string">个阶段定义</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;number lines&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">numberLines</span>, <span class="hljs-attr">required:</span> <span class="hljs-literal">true</span>&#125;<span class="hljs-string">,</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;early phielim&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">phielim</span>&#125;<span class="hljs-string">,</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;early copyelim&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">copyelim</span>&#125;<span class="hljs-string">,</span><br>	<span class="hljs-string">...</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;loop rotate&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">loopRotate</span>&#125;<span class="hljs-string">,</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;stackframe&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">stackframe</span>, <span class="hljs-attr">required:</span> <span class="hljs-literal">true</span>&#125;<span class="hljs-string">,</span><br>	&#123;<span class="hljs-attr">name:</span> <span class="hljs-string">&quot;trim&quot;</span>, <span class="hljs-attr">fn:</span> <span class="hljs-string">trim</span>&#125;<span class="hljs-string">,</span><br><span class="hljs-string">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>近 50 轮的处理，包含了针对一些机器特定的修改，针对目标架构的改写，进行了如：dead code elime等优化，执行效率有了较大的提升</p>
+<h3><span id="conclusion">Conclusion</span></h3><ol>
+<li>AST -&gt; SSA 中间代码 转换</li>
+<li>改写 AST 语法树中的关键字</li>
+<li>多轮处理，代码优化，提升执行效率</li>
+<li>golang 关键字 和 内置函数 实际上是在 AST 改写阶段进行展开的，对应到了其 runtime 阶段的具体实现</li>
+</ol>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/30/2-3-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%B1%BB%E5%9E%8B%E6%A3%80%E6%9F%A5/">
+                        <span class="hidden-mobile">2.3 编译原理 -- 类型检查</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>
