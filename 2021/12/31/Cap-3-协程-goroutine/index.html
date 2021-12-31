@@ -1,0 +1,561 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="1.OS内的相关概念1.1基本概念1234567进程：程序关于某数据结构集合上的一次运行活动，是系统进行资源分配和调度的基本单位。线程：OS进行运算调度的最小单位。被包含在进程中，是进程中的实际运行单位。PCB(Process Control Block)：进程控制块，OS定义的用来存储进程信息的数据结构TCB(Thread Control Block)：线程控制块，OS定义的用来存储线程信息的数">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cap 3: 协程 goroutine">
+<meta property="og:url" content="http://example.com/2021/12/31/Cap-3-%E5%8D%8F%E7%A8%8B-goroutine/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="1.OS内的相关概念1.1基本概念1234567进程：程序关于某数据结构集合上的一次运行活动，是系统进行资源分配和调度的基本单位。线程：OS进行运算调度的最小单位。被包含在进程中，是进程中的实际运行单位。PCB(Process Control Block)：进程控制块，OS定义的用来存储进程信息的数据结构TCB(Thread Control Block)：线程控制块，OS定义的用来存储线程信息的数">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-3-%E5%8D%8F%E7%A8%8B-goroutine/golang-scheduler.png">
+<meta property="article:published_time" content="2021-12-31T03:22:10.000Z">
+<meta property="article:modified_time" content="2021-12-31T03:25:18.826Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go专家编程》">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/2021/12/31/Cap-3-%E5%8D%8F%E7%A8%8B-goroutine/golang-scheduler.png">
+  
+  
+  <title>Cap 3: 协程 goroutine - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="Cap 3: 协程 goroutine">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-31 11:22" pubdate>
+        2021年12月31日 上午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.8k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      16 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">Cap 3: 协程 goroutine</h1>
+            
+            <div class="markdown-body">
+              <h3><span id="1os内的相关概念">1.OS内的相关概念</span></h3><h4><span id="11基本概念">1.1基本概念</span></h4><figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs stylus">进程：程序关于某数据结构集合上的一次运行活动，是系统进行资源分配和调度的基本单位。<br><br>线程：OS进行运算调度的最小单位。被包含在进程中，是进程中的实际运行单位。<br><br><span class="hljs-function"><span class="hljs-title">PCB</span><span class="hljs-params">(Process Control Block)</span></span>：进程控制块，OS定义的用来存储进程信息的数据结构<br><br><span class="hljs-function"><span class="hljs-title">TCB</span><span class="hljs-params">(Thread Control Block)</span></span>：线程控制块，OS定义的用来存储线程信息的数据结构<br></code></pre></td></tr></table></figure>
+
+<h4><span id="12-两者的不同区别-具体语言的实现可能有不同">1.2 两者的不同(区别) – 具体语言的实现可能有不同</span></h4><figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs gcode"><span class="hljs-number">1.</span>线程是程序执行的最小单位，而进程是操作系统分配资源的最小单位<br><span class="hljs-number">2.</span>一个进程由一个或多个线程组成，线程是一个进程中代码的不同执行单位<br><span class="hljs-number">3.</span>进程间相互独立，但同一进程下的各个线程之间共享程序的内存空间<span class="hljs-comment">(代码段,数据集,堆等)</span>以及进程级的资源<span class="hljs-comment">(如:打开文件，信号等)</span><br><span class="hljs-number">4.</span>某进程的线程对其他进程不可见<br><span class="hljs-number">5.</span>线程上下文切换比进程上下文切换块<br></code></pre></td></tr></table></figure>
+
+<h4><span id="13-通信方式">1.3 通信方式</span></h4><p>进程间通信：</p>
+<figure class="highlight mathematica"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs mathematica"><span class="hljs-number">1.</span>管道<br><span class="hljs-number">2.</span>消息队列<br><span class="hljs-number">3.</span>信号量<span class="hljs-punctuation">(</span><span class="hljs-variable">P</span><span class="hljs-operator">/</span><span class="hljs-variable">V</span>原语<span class="hljs-punctuation">)</span><br><span class="hljs-number">4.</span>共享存储<br><span class="hljs-number">5.</span><span class="hljs-built_in">Socket</span><br><span class="hljs-number">6.</span><span class="hljs-built_in">Streams</span><br></code></pre></td></tr></table></figure>
+
+<p>线程间通信：</p>
+<figure class="highlight vhdl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs vhdl"><span class="hljs-number">1</span>.锁（互斥锁，读写锁）<br><span class="hljs-number">2</span>.信号量 Semaphore<br><span class="hljs-number">3</span>.信号 <span class="hljs-keyword">Signal</span><br></code></pre></td></tr></table></figure>
+
+<h4><span id="14-状态">1.4 状态</span></h4><p>进程的状态：</p>
+<figure class="highlight mathematica"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs mathematica">创建状态：进程创建完成后，进入到就绪状态<br>就绪状态：进程获得除了处理器之外的一切所需资源，需要获取处理器资源<span class="hljs-punctuation">(</span>一般指时间片<span class="hljs-punctuation">)</span>才能进入到运行状态<br>运行状态：进程在处理器上运行<br>阻塞状态：等待状态，进程正在等待某一事件而暂停运行（等待资源，等待<span class="hljs-built_in">I</span><span class="hljs-operator">/</span><span class="hljs-built_in">O</span>）<br>结束状态：进程正常结束<span class="hljs-variable">or</span>其他原因中断退出运行<br></code></pre></td></tr></table></figure>
+
+
+<h3><span id="2协程-轻量级线程">2.协程 – 轻量级线程</span></h3><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">1.与线程相比，协程不受操作系统调度，协程调度器由用户应用程序提供，协程调度器按照调度策略将协程调度到进程中运行<br>2.多个协程分享OS分给线程的时间片，协程调度器决定了协程运行的顺序<br>3.一个线程上，每一时刻只能运行一个协程<br></code></pre></td></tr></table></figure>
+
+<h3><span id="3调度模型">3.调度模型</span></h3><h4><span id="31-线程模型">3.1 线程模型</span></h4><p>线程可以分为用户线程和内核线程</p>
+<figure class="highlight mathematica"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs mathematica">三种线程模型：<br><span class="hljs-number">1.</span><span class="hljs-built_in">N</span><span class="hljs-operator">:</span><span class="hljs-number">1</span>模型：<span class="hljs-built_in">N</span>个用户线程运行在<span class="hljs-number">1</span>个内核线程中<br>优点：用户线程上下文切换快<br>缺点：无法充利用<span class="hljs-variable">CPU</span>算力<br><br><span class="hljs-number">2.1</span><span class="hljs-operator">:</span><span class="hljs-number">1</span>模型：每个用户线程对应一个内核线程<br>优点：充分利用了<span class="hljs-variable">CPU</span>算力<br>缺点：用户进程上下文切换慢<br><br><span class="hljs-number">3.</span><span class="hljs-variable">M</span><span class="hljs-operator">:</span><span class="hljs-built_in">N</span>模型：<span class="hljs-variable">M</span>个用户线程运行在<span class="hljs-built_in">N</span>个内核线程中。<span class="hljs-variable">Golang</span>采用这种模型实现<br>优点：上下文切换快，充分利用了<span class="hljs-variable">CPU</span>算力<br>缺点：调度算法实现复杂<br></code></pre></td></tr></table></figure>
+
+<h4><span id="32-golang调度器模型-遵循csp模型实现">3.2 Golang调度器模型 – 遵循CSP模型实现</span></h4><figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs css">Golang协程调度模型包含了三个主要的部分：M,<span class="hljs-selector-tag">P</span>,G。其中：<br>M：Machine：工作线程，由操作系统调度<br><span class="hljs-selector-tag">P</span>：Processor：Go定义的一个概念-处理器，包含运行Go代码的必要资源，有调度goroutine的能力<br>G：Goroutine：Go协程<br></code></pre></td></tr></table></figure>
+
+<p>三者之间的关系：</p>
+<figure class="highlight tp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs tp"><span class="hljs-number">1</span>.M必须持有G才能执行代码<br><span class="hljs-number">2</span>.<span class="hljs-keyword">P</span>的个数在程序启动时决定，默认等于CPU的核数<br><span class="hljs-number">3</span>.<span class="hljs-keyword">P</span>每一时刻只能执行一个G<br></code></pre></td></tr></table></figure>
+
+<p>Golang调度器模型图：</p>
+<img src="/2021/12/31/Cap-3-%E5%8D%8F%E7%A8%8B-goroutine/golang-scheduler.png" srcset="/img/loading.gif" lazyload class title="golang scheduler model">
+
+<h3><span id="4调度策略">4.调度策略</span></h3><p>Golang调度器的调度策略随着Golang版本的提升做了很多的优化，发展过程如下：</p>
+<figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs css"><span class="hljs-number">1</span>.单线程调度器 · <span class="hljs-number">0</span><span class="hljs-selector-class">.x</span><br>只包含 <span class="hljs-number">40</span> 多行代码；<br>程序中只能存在一个活跃线程，由 G-M 模型组成；<br><br><span class="hljs-number">2</span>.多线程调度器 · <span class="hljs-number">1.0</span><br>允许运行多线程的程序；<br>全局锁导致竞争严重；<br><br><span class="hljs-number">3</span>.任务窃取调度器 · <span class="hljs-number">1.1</span><br>引入了处理器 <span class="hljs-selector-tag">P</span>，构成了目前的 G-M-<span class="hljs-selector-tag">P</span> 模型；<br>在处理器 <span class="hljs-selector-tag">P</span> 的基础上实现了基于工作窃取的调度器；<br>在某些情况下，Goroutine 不会让出线程，进而造成饥饿问题；<br>时间过长的垃圾回收（Stop-the-world，STW）会导致程序长时间无法工作；<br><br><span class="hljs-number">4</span>.抢占式调度器 · <span class="hljs-number">1.2</span> ~ 至今<br><span class="hljs-number">4.1</span> 基于协作的抢占式调度器 - <span class="hljs-number">1.2</span> ~ <span class="hljs-number">1.13</span><br>通过编译器在函数调用时插入抢占检查指令，在函数调用时检查当前 Goroutine 是否发起了抢占请求，实现基于协作的抢占式调度；<br>Goroutine 可能会因为垃圾回收和循环长时间占用资源导致程序暂停；<br><span class="hljs-number">4.2</span> 基于信号的抢占式调度器 - <span class="hljs-number">1.14</span> ~ 至今<br>实现基于信号的真抢占式调度；<br>垃圾回收在扫描栈时会触发抢占调度；<br>抢占的时间点不够多，还不能覆盖全部的边缘情况；<br><br><span class="hljs-number">5</span>.非均匀存储访问调度器 · 提案<br>对运行时的各种资源进行分区；<br>实现非常复杂，到今天还没有提上日程；<br></code></pre></td></tr></table></figure>
+
+<h3><span id="5-调度器实现-后续找时间详细分析-goroutine-调度器实现">5. 调度器实现 – 后续找时间详细分析 goroutine 调度器实现</span></h3><p>此处内容移步到： <a target="_blank" rel="noopener" href="https://draveness.me/golang/docs/part3-runtime/ch06-concurrency/golang-goroutine/#651-%E8%AE%BE%E8%AE%A1%E5%8E%9F%E7%90%86">《Go语言设计与实现》– 6.5调度器</a></p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Cap 4: 内存管理 -- 内存分配器</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-2-%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%8F%8A%E5%85%B6%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">
+                        <span class="hidden-mobile">Cap 2: 控制结构及其底层实现</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>

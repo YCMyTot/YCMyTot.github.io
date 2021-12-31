@@ -193,6 +193,363 @@
     <article class="col-12 col-md-12 mx-auto index-info">
       <h1 class="index-header">
         
+        <a href="/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/" target="_self">
+          2.5 编译原理 -- 机器码生成
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-5-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E6%9C%BA%E5%99%A8%E7%A0%81%E7%94%9F%E6%88%90/" target="_self">
+          
+          2.5 机器码生成golang compile 的最后一个阶段是根据 SSA中间代码 生成 机器码 机器码：目标 CPU 架构上能够运行的二进制代码 SSA 中间代码生成，多轮转换 49个步骤中， lower 后的一些步骤实际上是属于 机器码生成 阶段的 机器码生成 -&gt; 对 SSA 中间代码的降级过程，在这一过程中，编译器将一些值重写成了目标CPU架构的特定值，降级的过程处理了所有机器特定
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 23:31" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/" target="_self">
+          2.4 编译原理 -- SSA中间代码生成
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-4-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-SSA%E4%B8%AD%E9%97%B4%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90/" target="_self">
+          
+          2.4 中间代码生成词法、语法分析 &amp; 类型检查 都属于 compile frontend，负责对源码进行分析并检查其中存在的词法和语法错误 经过以上两个阶段生成的 AST，不包含任何的语法错误。 中间代码生成 &amp; 机器码生成 都属于 compile backend。 2.4.1 中间代码中间代码是 编译器 或者 虚拟机 使用的语言，它可以用来帮组我们分析计算机程序。 在编译过程中
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 23:13" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/2-3-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%B1%BB%E5%9E%8B%E6%A3%80%E6%9F%A5/" target="_self">
+          2.3 编译原理 -- 类型检查
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-3-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%B1%BB%E5%9E%8B%E6%A3%80%E6%9F%A5/" target="_self">
+          
+          2.3 Type checking（类型检查）经过 Parsing(词法分析 &amp; 语法分析)阶段后，我们得到了源文件的 AST 树，表明了此时的源码文件已经不存在 词法、语法错误等问题 后续将要执行的类型检查，会遍历 AST 中的节点，对每一个节点的类型进行检验，找出其中存在的 语法 &amp; 类型错误； 同时在这个过程中可能会改写 AST，剔除不会被执行的代码、优化代码、改写 make
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 23:03" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%AD%E6%B3%95%E5%88%86%E6%9E%90%E5%99%A8%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/" target="_self">
+          2.2 编译原理 -- 语法分析器设计与实现
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%AD%E6%B3%95%E5%88%86%E6%9E%90%E5%99%A8%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/" target="_self">
+          
+          2.2 Parsing（词法分析 &amp; 语法分析 ）同属于编译过程，将源码文件转换成更易于 理解、分析 并且 结构化 的AST。 可以通过以下工具，对比分析 源文件 以及其对应的 AST 树astexplorer.net 2.2.2 语法分析 – Grammar, 分析方法, go 实现语法分析-&gt; 根据某种特定的形式文法对 Token 序列 进行分析，并确定其语法结构的过程 具体实现
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 23:02" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%8D%E6%B3%95%E5%88%86%E6%9E%90/" target="_self">
+          2.2 编译原理 -- 词法分析
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-2-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E8%AF%8D%E6%B3%95%E5%88%86%E6%9E%90/" target="_self">
+          
+          2.2 Parsing（词法分析 &amp; 语法分析 ）同属于编译过程，将源码文件转换成更易于 理解、分析 并且 结构化 的AST。 2.2.1 词法分析 – lex, go 实现词法分析-&gt; 将字符串分组，降低理解字符串的成本，简化源码的分析过程-&gt; 字符序列转化为 Token(标记) 序列的过程 lexlex 官方文档 – 如何使用 lex 构建自己的词法分析器 lex 用于生成
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 23:01" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/2-1-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%BC%96%E8%AF%91%E8%BF%87%E7%A8%8B/" target="_self">
+          2.1 编译原理 -- 编译过程
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/2-1-%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86-%E7%BC%96%E8%AF%91%E8%BF%87%E7%A8%8B/" target="_self">
+          
+          Golang 代码&#x2F;项目 在运行之前需要通过编译器将其编译为二进制机器码，包含二进制机器码的文件才能够在机器上运行。 编译原理 是一门较为硬核的专业课，软工培养方案中没有（是我们太笨？还是这门课太难？）。 深入了解编译原理，推荐《编译原理（第2版）[龙书]》，该书的两位作者获得了 2020年图灵奖。 0 预备知识0.1 AST – 联想到了数据库语法分析&amp;词法分析 中的 AST抽象语法树（
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 22:56" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
+        <a href="/2021/12/30/1-1-%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-%E5%AE%89%E8%A3%85/" target="_self">
+          1.1 源码编译 &amp; 安装
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/2021/12/30/1-1-%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-%E5%AE%89%E8%A3%85/" target="_self">
+          
+          1. 准备工作Go 1.5 及以后的版本实现了 bootstrapping（自举），在编译 Go 1.5 以上版本时，首先应安装&#x2F;编译 Go 1.4 1.1 bootstrapping程序语言编译器使用自身的语言特性来编译自己，Go 1.5 支持了 通过 基于 Golang 实现的编译器来编译自己 Go, Rust 等都实现了 bootstrapping 1.2 CentOS 7.6 编译 Gol
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-12-30 22:44" pubdate>
+              2021-12-30
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/Golang/">Golang</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+            
+              <a href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/%E3%80%8AGo%E8%AF%AD%E8%A8%80%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0%E3%80%8B/">《Go语言设计与实现》</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
         <a href="/2021/12/30/rabbitMQ-Operator/" target="_self">
           rabbitMQ-Operator
         </a>

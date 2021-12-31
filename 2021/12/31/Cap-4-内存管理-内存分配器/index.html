@@ -1,0 +1,953 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="1.内存分配器编程语言的内存分配和操作系统的内存分配，是有很大差别的 121.OS的内存管理包括两部分：物理内存管理，虚拟内存管理2.编程语言侧重于对程序所在的虚拟内存的管理，其中包括堆和栈  1.1 OS的内存管理 – 编程语言内存分配的基础参考链接： 操作系统内存管理 包括物理内存管理和虚拟内存管理两部分，其中： 1234567891011121.物理内存管理：    1.1 程序装入(局部性">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cap 4: 内存管理 -- 内存分配器">
+<meta property="og:url" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="1.内存分配器编程语言的内存分配和操作系统的内存分配，是有很大差别的 121.OS的内存管理包括两部分：物理内存管理，虚拟内存管理2.编程语言侧重于对程序所在的虚拟内存的管理，其中包括堆和栈  1.1 OS的内存管理 – 编程语言内存分配的基础参考链接： 操作系统内存管理 包括物理内存管理和虚拟内存管理两部分，其中： 1234567891011121.物理内存管理：    1.1 程序装入(局部性">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/mutator-allocator-collector.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/segregated-list.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/multi-level-cache.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/heap-before-go-1-11.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/heap-after-go-1-11.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/memory-regions-states-and-transitions.png">
+<meta property="og:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/go-memory-layout.png">
+<meta property="article:published_time" content="2021-12-31T03:36:21.000Z">
+<meta property="article:modified_time" content="2021-12-31T03:49:48.797Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go专家编程》">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/mutator-allocator-collector.png">
+  
+  
+  <title>Cap 4: 内存管理 -- 内存分配器 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="Cap 4: 内存管理 -- 内存分配器">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-31 11:36" pubdate>
+        2021年12月31日 中午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      24k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      197 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">Cap 4: 内存管理 -- 内存分配器</h1>
+            
+            <div class="markdown-body">
+              <h3><span id="1内存分配器">1.内存分配器</span></h3><p>编程语言的内存分配和操作系统的内存分配，是有很大差别的</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">1.OS的内存管理包括两部分：物理内存管理，虚拟内存管理<br>2.编程语言侧重于对程序所在的虚拟内存的管理，其中包括堆和栈<br></code></pre></td></tr></table></figure>
+
+<h4><span id="11-os的内存管理-编程语言内存分配的基础">1.1 OS的内存管理 – 编程语言内存分配的基础</span></h4><p>参考链接： <a target="_blank" rel="noopener" href="https://blog.csdn.net/hguisu/article/details/5713164">操作系统内存管理</a></p>
+<p>包括物理内存管理和虚拟内存管理两部分，其中：</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">1</span>.物理内存管理：<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">1</span> 程序装入(局部性原理)<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">2</span> 交换技术<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">3</span> 连续分配管理<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">4</span> 非连续分配管理(分页，分段，段页式)<br><span class="hljs-attribute">2</span>.虚拟内存管理<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">1</span> 虚拟内存<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">2</span> 请求分页管理<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">3</span> 页面置换算法(FIFO,LRU等)<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">4</span> 页面分配策略<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">5</span> 工作集<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">6</span> 抖动<br></code></pre></td></tr></table></figure>
+
+<h5><span id="111-物理内存">1.1.1 物理内存</span></h5><h6><span id="分类">分类</span></h6><p>真实插在计算机上的存储设备，按照功能将其分为以下类别：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">1.CPU Cache：<br><span class="hljs-bullet">- </span>位于CPU与内存之间的临时存储器，容量很小，但是交换速度高于内存。<br><span class="hljs-bullet">- </span>缓存的出现主要是为了解决CPU运算速度与内存读写速度不匹配的矛盾，实际上是CPU计算太快了，现有的内存读写速度太慢了，使得CPU需要等待数据到来或者把数据写入内存<br><br>2.RAM，内存，主存：Random Access Memory 随机存取存储器<br><span class="hljs-bullet">- </span>与CPU直接交换数据的内部存储器，特性包括：随机读写，速度较快<br><span class="hljs-bullet">- </span>通常作为操作系统或者其他正在运行中的程序的临时数据存储介质<br><span class="hljs-bullet">- </span>断电后，RAM中的数据会丢失<br><br>3.磁盘：<br><span class="hljs-bullet">- </span>与主存直接交换数据的外部存储器，容量很大，但是读/写磁盘较慢<br><span class="hljs-bullet">- </span>断电后，磁盘的数据不会丢失<br></code></pre></td></tr></table></figure>
+
+<h6><span id="覆盖交换技术">覆盖+交换技术</span></h6><figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs gcode">覆盖：<br>将程序分为多个段，常用的段常驻内存，其他不常用的段存储于外存<span class="hljs-comment">(磁盘)</span>，在使用的时候调入内存<br><br>交换：<br>内存空间紧张时，系统将内存中的某些进程暂时换出到外存，把外存中的已具备运行条件的进程换入内存<br></code></pre></td></tr></table></figure>
+
+<h6><span id="连续分配管理">连续分配管理</span></h6><p>包含以下几种：</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">1</span>.单一连续分配<br><span class="hljs-attribute">2</span>.固定分区分配<br><span class="hljs-attribute">3</span>.动态分区分配（<span class="hljs-number">4</span>种动态分配算法）<br></code></pre></td></tr></table></figure>
+
+<p>单一连续分配：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">实现：内存分为系统区和用户区，系统区存放操作系统的相关数据，用户区存放用户进程相关数据，内存中只能由一道用户程序，独占整个用户区空间<br>优点：实现简单<br>缺点：只能用户单用户，单任务OS，利用率低，有碎片<br></code></pre></td></tr></table></figure>
+
+<p>固定分区分配：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">实现：支持多道程序系统，将用户区划分为若干固定大小的分区，在每个分区装入一道作业。且使用一个链表结构，存储分区说明白表，来实现各个分区的分配和回收<br>优点：实现简单<br>缺点：利用率低，有碎片<br></code></pre></td></tr></table></figure>
+
+<p>动态分区分配：<strong>每个分区不一定连续，用链表存储分区信息</strong></p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">实现：在进程装入内存时，根据进程大小动态创建分区，使得分区的大小正好适合进程的需要<br>具体实现包含了4中算法：<br><span class="hljs-bullet">- </span>首次适应<br><span class="hljs-bullet">- </span>最佳适应<br><span class="hljs-bullet">- </span>最坏适应<br><span class="hljs-bullet">- </span>邻近适应<br></code></pre></td></tr></table></figure>
+
+<p>首次适应：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">每次都从低地址开始查找, 找到第一个能满足大小的空闲分区<br>实现：把空闲分区按地址递增的次序排列<br>每次分配内存时顺序地查找空闲分区链, 找到大小能满足要求的第一个空闲分区<br></code></pre></td></tr></table></figure>
+
+<p>最佳适应：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">实现：空闲分区按容量递增次序链接，每次分配内存时顺序查找空闲分区链,找到大小能满足要求的第一个空闲分区<br>缺点：每次都选择最小的分区进行分配, 会留下越来越多的容量很小难以利用的内存块,即产生很多的外部碎片<br></code></pre></td></tr></table></figure>
+
+<p>最坏适应：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">优先使用大的空闲分区<br>实现：空闲分区按容量递减次序链接<br>缺点：每次都选用最大的分区进行分配, 当较大的连续空闲区被小号之后, 如果有大进程到来则没有内存分区可以利用<br></code></pre></td></tr></table></figure>
+
+<p>邻近适应：</p>
+<figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs gcode">在首次适应算法的基础上, 每次都从上次查找结束的位置开始查找空闲分区链<span class="hljs-comment">(表)</span>,找到大小能满足的第一个空闲分区<br>缺点：邻近适应算法导致无论低地址还是高地址的空闲分区都有相同的概率被使用, 也就导致了高地址部分的大分区更可能被使用划分为小分区, 最后导致没有大分区可用<br></code></pre></td></tr></table></figure>
+
+<p>几种方法的比较：</p>
+<figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs gcode">综合来看, 首次适应算法的性能最好<br>算法开销大：最佳适应法, 最坏适应法 <span class="hljs-comment">( 需要经常排序)</span><br>算法开销小：首次适应算法, 邻近适应算法<br></code></pre></td></tr></table></figure>
+
+<h6><span id="非连续分配管理-离散不连续逻辑地址-gt-物理地址">非连续分配管理 – 离散，不连续，逻辑地址 -&gt; 物理地址</span></h6><p>引入非连续分配管理，是为了解决连续内存管理存在的一些问题：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-bullet">- </span>分配给程序的物理内存必须连续<br><span class="hljs-bullet">- </span>存在外碎片和内碎片<br><span class="hljs-bullet">- </span>内存分配的动态修改困难<br><span class="hljs-bullet">- </span>内存利用率较低<br></code></pre></td></tr></table></figure>
+
+<p>非连续内存分配管理主要分为：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-bullet">1.</span> 段式存储管理<br><span class="hljs-bullet">2.</span> 页式存储管理<br><span class="hljs-bullet">3.</span> 段页式存储管理<br></code></pre></td></tr></table></figure>
+
+
+<h5><span id="112-地址空间-虚拟地址">1.1.2 地址空间 – 虚拟地址</span></h5><p>在没有引入内存地址之前，系统or程序直接访问和操作物理内存，内存的管理非常简单，但是带来了很多的问题：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-bullet">1.</span> 用户程序可以访问任意内存，容易破坏操作系统，造成崩溃<br><span class="hljs-bullet">2.</span> 同时运行多个程序特别困难<br></code></pre></td></tr></table></figure>
+
+<p>上述问题的解决：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs arduino"><span class="hljs-number">1.</span>引入了多进程技术 - 某一时刻只运行一个进程，ready态的进程间相互切换<br><span class="hljs-number">2.</span>引入了地址空间 Address Space， 对物理内存的抽象 - 每一个具体的进程的内存空间，包含了该进程所有相关内存，如：code/stack/heap<br></code></pre></td></tr></table></figure>
+
+<p>地址空间本质上是，虚拟地址 – 虚拟内存上分配的地址</p>
+<figure class="highlight delphi"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs delphi"><span class="hljs-number">1</span>.进程执行时，看到和使用到的内存地址都是虚拟地址<br><span class="hljs-number">2</span>.OS中的MMU(内存管理单元-Memory Management <span class="hljs-keyword">Unit</span>)，将虚拟地址转换为物理地址<br></code></pre></td></tr></table></figure>
+
+<h5><span id="112-虚拟内存-覆盖交换局部性原理">1.1.2 虚拟内存 – 覆盖，交换，局部性原理</span></h5><p>虚拟内存是一种运行进程部分装入内存就可以执行的技术，基于局部性原理实现，只需要把当前需要执行的程序内容装入内存即可。这个时候用户看到的逻辑地址空间远大于物理地址空间，需要通过页面的频繁换入，换出实现。</p>
+<h6><span id="基本思想">基本思想：</span></h6><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">每个进程有独立的逻辑地址空间，内存被分为大小相等的多个块，称为页。<br>每个页都是一段连续的地址。<br>对于进程而言，逻辑上有很大的内存空间，其中一部分对应物理内存上的一块，还有一些没有加载在内存中，对应在硬盘上。<br></code></pre></td></tr></table></figure>
+
+<h6><span id="请求调页">请求调页</span></h6><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">1.依照程序局部性原理，取出要使用的页，将其装入内存<br>2.当发生缺页时，产生缺页中断，将外存上的页调入内存<br>3.内存中无空间时，将部分页面换出内存<br></code></pre></td></tr></table></figure>
+
+<h6><span id="页面调入策略">页面调入策略</span></h6><figure class="highlight mathematica"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs mathematica"><span class="hljs-number">1.</span>预调页策略：主动的页面调入策略<br>即把那些预计很快会被访问的程序或数据所在的页面，预先调入内存；这个策略的性能取决于预测的准确率，预测的准确率不高（<span class="hljs-number">50</span><span class="hljs-operator">%</span>），主要用于进程的首次调入。也有的系统将预调页策略用于请求调页。<br><span class="hljs-number">2.</span>请求调页策略：<br>当进程在运行中发生缺页时，由系统将缺页调入内存；<br>目前虚拟存储器系统大多采用此策略；但在调页时须花费较大的系统开销，如需频繁启动磁盘<span class="hljs-built_in">I</span><span class="hljs-operator">/</span><span class="hljs-built_in">O</span>。<br></code></pre></td></tr></table></figure>
+
+<h6><span id="页面置换算法">页面置换算法</span></h6><p>常用页面置换算法如下：</p>
+<figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs armasm"><span class="hljs-number">1</span>.最佳算法 <span class="hljs-meta">OPT</span><br><span class="hljs-number">2</span>.先进先出置换算法 FITO<br><span class="hljs-number">3</span>.最近最久未使用置换算法 LRU<br></code></pre></td></tr></table></figure>
+
+<p>最佳算法：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">思想：最佳算法中被置换的页将是之后最长时间不被使用的页<br>用处：最佳算法只是理论上最优的算法，现实中是无法实现的，我们通常用它来衡量其他算法的性能<br></code></pre></td></tr></table></figure>
+
+<p>先进先出置换算法：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">思想：选择最近最少使用的页进行置换<br>性能：比最佳算法差了一倍<br></code></pre></td></tr></table></figure>
+
+<p>LRU：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">思想：按照内存先来先得，先进来的先出去这种方式来选择置换的页<br>性能：性能最好，且能实现<br></code></pre></td></tr></table></figure>
+
+
+<h6><span id="抖动">抖动</span></h6><figure class="highlight gcode"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs gcode">抖动 <span class="hljs-comment">(Thrashing)</span>：<br>如果进程分配到的帧数量小于计算机体系结构所要求的最小数量，那么必须暂停进行执行。<br>并将其置换出去，使其所有分配帧空闲。<br>这么做的原因就是如果进程没有这些必需的帧，那么很快会出现缺页，此时需置换某个页，然而，其所有页都在使用，置换出去的页立刻又需要置换进来，因此，会不断的产生缺页。这种频繁的调页行为称作抖动 <span class="hljs-comment">(Thrashing)</span>，也叫颠簸。<br></code></pre></td></tr></table></figure>
+
+<h3><span id="2设计原理">2.设计原理</span></h3><p>内存管理一般包括三个不同的组件：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">1.用户程序<br>2.分配器<br>3.收集器<br></code></pre></td></tr></table></figure>
+
+<p>组件间关系如下图：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/mutator-allocator-collector.png" srcset="/img/loading.gif" lazyload class title="内存分配各组件">
+
+<h4><span id="21-堆-amp-栈">2.1 堆 &amp; 栈</span></h4><p>程序中的数据和变量都会被分配到程序所在的虚拟内存中，内存空间包含两个重要区域 — 栈区（Stack）和堆区（Heap）</p>
+<p>两者的比较如下：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-bullet">-</span> 堆：<br>1.程序运行时申请的动态内存<br>2.不同编程语言使用不同的方式管理堆区的内存：<br><span class="hljs-bullet">    -</span> c/c++等编程语言会由工程师主动申请和释放内存<br><span class="hljs-bullet">    -</span> Golang和Java等编程语言主要交由编译器管理，堆中的对象内存由内存分配器分配并由垃圾收集器回收<br><br><span class="hljs-bullet">-</span> 栈：<br>1.函数调用的参数，返回值，局部变量大都会被分配到栈上<br>2.栈上的内存由编译器进行管理<br></code></pre></td></tr></table></figure>
+
+<p><strong>我们所说的内存分配和垃圾回收，主要是针对堆上的内存</strong></p>
+<h4><span id="22-分配方法-编程语言的内存分配器">2.2 分配方法 – 编程语言的内存分配器</span></h4><p>编程语言的内存分配器一般包含两种分配方法：</p>
+<ul>
+<li>线性分配器（Sequential Allocator，Bump Allocator）</li>
+<li>空闲链表分配器（Free-List Allocator）</li>
+</ul>
+<p>Golang采用的是分级分配方法</p>
+<h5><span id="221-线性分配器">2.2.1 线性分配器</span></h5><p>思想：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">1.在内存中维护一个指向内存特定位置的指针<br>2.程序申请内存时：<br><span class="hljs-bullet">- </span>分配器检查剩余的空闲内存，返回分配的内存区域<br><span class="hljs-bullet">- </span>修改指针的位置<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">1.执行速度较快<br>2.实现较为简单<br></code></pre></td></tr></table></figure>
+
+<p>缺点：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs">1.无法重用被释放的内存：没有记录被释放的内存的位置，只能向后继续分配并使用内存<br></code></pre></td></tr></table></figure>
+
+<p><strong>适用的垃圾回收算法：具有拷贝特性的GC算法，能够通过拷贝的方式整理存活对象的碎片，将空闲空间定期合并</strong></p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">1.标记压缩<br>2.复制回收<br>3.分代回收<br></code></pre></td></tr></table></figure>
+
+<h5><span id="222-空闲链表分配器">2.2.2 空闲链表分配器</span></h5><p>思想：时间复杂度为O(n)</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">1.维护一个关于空闲内存块信息的链表（内存块大小，内存块开始位置等信息）<br>2.程序申请内存时：<br><span class="hljs-bullet">- </span>依次遍历空闲的内存块，找到足够大空间的内存块<br><span class="hljs-bullet">- </span>申请资源<br><span class="hljs-bullet">- </span>修改链表<br></code></pre></td></tr></table></figure>
+
+<p>联想到上面提到的 <strong>动态分区分配</strong>，常用策略有以下四种：</p>
+<figure class="highlight mathematica"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs mathematica"><span class="hljs-number">1.</span>首次适应（<span class="hljs-built_in">First</span><span class="hljs-operator">-</span><span class="hljs-built_in">Fit</span>）：<br><span class="hljs-operator">-</span> 从链表头开始遍历，选择第一个大小大于申请内存的内存块<br><span class="hljs-number">2.</span>循环首次适应（<span class="hljs-built_in">Next</span><span class="hljs-operator">-</span><span class="hljs-built_in">Fit</span>）<br><span class="hljs-operator">-</span> 从上次遍历的结束位置开始遍历，选择第一个大小大于申请内存的内存块<br><span class="hljs-number">3.</span>最优适应（<span class="hljs-variable">Best</span><span class="hljs-operator">-</span><span class="hljs-built_in">Fit</span>）<br><span class="hljs-operator">-</span> 从链表头遍历整个链表，选择最合适的内存块<br><span class="hljs-number">4.</span>隔离适应（<span class="hljs-variable">Segregated</span><span class="hljs-operator">-</span><span class="hljs-built_in">Fit</span>）<br><span class="hljs-operator">-</span> 将内存分割成多个链表，每个链表中的内存块大小相同，申请内存时先找到满足条件的链表，再从链表中选择合适的内存块<br></code></pre></td></tr></table></figure>
+
+<p>需要注意的是：<strong>隔离适应策略</strong>，Golang使用的内存分配策略与隔离适应策略思想相同</p>
+<h5><span id="223-隔离适应策略">2.2.3 隔离适应策略</span></h5><p>思想：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">1.将内存分割成4,8,16,32字节的内存块，再将相同大小的内存块组成链表<br>2.程序申请内存时：<br><span class="hljs-bullet">- </span>根据要分配的内存块大小，找到对应的链表<br><span class="hljs-bullet">- </span>在对应的链表上，找到空闲的内存块并返回<br><span class="hljs-bullet">- </span>修改链表信息<br></code></pre></td></tr></table></figure>
+<p>实现示意图：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/segregated-list.png" srcset="/img/loading.gif" lazyload class title="隔离适应策略对内存块按照 字节分割">
+
+<h4><span id="23-分级分配-golang采用的内存分配方法">2.3 分级分配 – Golang采用的内存分配方法</span></h4><p>核心思想：<strong>使用多级缓存，将对象根据大小分类，按照类别实施不同的分配策略</strong></p>
+<h5><span id="231-对象类别和大小">2.3.1 对象类别和大小：</span></h5><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>大小</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>微对象</td>
+<td>(0, 16B)</td>
+</tr>
+<tr>
+<td>小对象</td>
+<td>[16B, 32KB]</td>
+</tr>
+<tr>
+<td>大对象</td>
+<td>(32KB, 无穷大)</td>
+</tr>
+</tbody></table>
+<h5><span id="232-多级缓存">2.3.2 多级缓存</span></h5><p>Golang运行时引入了线程缓存（Thread Cache）、中心缓存（Central Cache）和页堆（Page Heap）三个组件分级管理内存：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/multi-level-cache.png" srcset="/img/loading.gif" lazyload class title="多级缓存模型">
+
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-bullet">- </span>线程缓存属于每一个独立的线程，它能够满足线程上绝大多数的内存分配需求，因为不涉及多线程，所以也不需要使用互斥锁来保护内存，这能够减少锁竞争带来的性能损耗。<br><span class="hljs-bullet">- </span>当线程缓存不能满足需求时，就会使用中心缓存作为补充解决小对象的内存分配问题。<br><span class="hljs-bullet">- </span>在遇到 32KB 以上的对象时，内存分配器就会选择页堆直接分配大量的内存。<br></code></pre></td></tr></table></figure>
+
+<h4><span id="24-golang的虚拟内存布局-堆区内存地址空间的设计">2.4 Golang的虚拟内存布局 – 堆区内存地址空间的设计</span></h4><p>随着Golang版本的不断更新，Golang在堆区内存地址空间的设计上有了很大的变更：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-number">1</span><span class="hljs-selector-class">.Golang</span> <span class="hljs-number">0</span><span class="hljs-selector-class">.x</span> ~ Golang <span class="hljs-number">1.0</span>：<br>- 堆区空间连续设计<br><span class="hljs-number">2</span><span class="hljs-selector-class">.Golang</span> <span class="hljs-number">1.1</span> ~ 至今：<br>- 稀疏的堆内存空间<br></code></pre></td></tr></table></figure>
+
+<h5><span id="241-线性内存-堆空间连续">2.4.1 线性内存 - 堆空间连续</span></h5><p>Golang程序启动时会初始化整片虚拟内存区域，spans，bitmap，arena分别预留了512MB,16GB以及512GB的虚拟内存空间。</p>
+<p>线性内存布局示意图：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/heap-before-go-1-11.png" srcset="/img/loading.gif" lazyload class title="线性内存模型">
+
+<p>其中：(通过计算可以验证)</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-number">1</span><span class="hljs-selector-class">.spans</span> 区域存储了指向内存管理单元 runtime<span class="hljs-selector-class">.mspan</span> 的指针，每个内存单元会管理几页的内存空间，每页大小为 <span class="hljs-number">8</span>KB<br><span class="hljs-number">2</span><span class="hljs-selector-class">.bitmap</span> 用于标识 arena 区域中的那些地址保存了对象，位图中的每个字节都会表示堆区中的 <span class="hljs-number">32</span> 字节是否包含空闲 -- 垃圾回收使用<br><span class="hljs-number">3</span><span class="hljs-selector-class">.arena</span> 区域是真正的堆区，运行时会将 <span class="hljs-number">8</span>KB 看做一页，这些内存页中存储了所有在堆上初始化的对象<br><span class="hljs-number">4</span>.对于任意一个地址，我们都可以根据 arena 的基地址计算该地址所在的页数并通过 spans 数组获得管理该片内存的管理单元 runtime.mspan，spans 数组中多个连续的位置可能对应同一个 runtime.mspan。<br></code></pre></td></tr></table></figure>
+
+<h5><span id="242-稀疏内存-堆空间不连续">2.4.2 稀疏内存 - 堆空间不连续</span></h5><p>Go 1.1中提出的方案，使用稀疏的内存布局不仅能移除堆大小的上限，还能解决C和Go混合使用时的地址空间冲突问题。</p>
+<p>稀疏内存布局：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/heap-after-go-1-11.png" srcset="/img/loading.gif" lazyload class title="稀疏内存模型">
+
+<p>Go runtime使用二维的runtime.headArena数组管理所有的内存，每个单元都会管理64MB的内存空间：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">type</span> heapArena <span class="hljs-keyword">struct</span> &#123;<br>	bitmap [heapArenaBitmapBytes]<span class="hljs-keyword">byte</span>   <span class="hljs-comment">// 与线性内存中的bitmap对应</span><br>	spans [pagesPerArena]*mspan         <span class="hljs-comment">// 与线性内存中的spans对应</span><br>	pageInUse [pagesPerArena / <span class="hljs-number">8</span>]<span class="hljs-keyword">uint8</span>  <span class="hljs-comment">// 使用的页</span><br>	pageMarks [pagesPerArena / <span class="hljs-number">8</span>]<span class="hljs-keyword">uint8</span>  <span class="hljs-comment">// 被标记的页，用于GC</span><br>	zeroedBase <span class="hljs-keyword">uintptr</span>                  <span class="hljs-comment">// 内存基地址</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="25-golang的地址空间-对os内存管理的抽象">2.5 Golang的地址空间 – 对OS内存管理的抽象</span></h4><p>Golang runtime构建了操作系统的内存管理抽象层，该抽象层将运行时管理的地址空间分成以下的四种状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>None</td>
+<td>内存没有被保留或者映射，是地址空间的默认状态</td>
+</tr>
+<tr>
+<td>Reserved</td>
+<td>运行时持有该地址空间，但是访问该内存会导致错误</td>
+</tr>
+<tr>
+<td>Prepared</td>
+<td>内存被保留，一般没有对应的物理内存访问该片内存的行为是未定义的可以快速转换到Ready 状态</td>
+</tr>
+<tr>
+<td>Ready</td>
+<td>可以被安全访问</td>
+</tr>
+</tbody></table>
+<p>有了内存状态，自然就涉及到地址空间状态的转换：<br>每一个不同的操作系统都会包含一组特定的方法，这些方法可以让内存地址空间在不同的状态之间做出转换：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/memory-regions-states-and-transitions.png" srcset="/img/loading.gif" lazyload class title="内存区域状态 &amp; 状态之间的转换">
+
+<p>golang runtime中设计了多个操作系统对状态转换方法的实现，所有的实现包含在了以mem_开头的文件中，如：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs go">mem_linux.<span class="hljs-keyword">go</span>：linux系统的实现<br>mem_windows.<span class="hljs-keyword">go</span>：windows系统的实现<br>mem_darwin.<span class="hljs-keyword">go</span>：Darwin平台上的实现<br></code></pre></td></tr></table></figure>
+<p>查看go runtime代码：<a target="_blank" rel="noopener" href="https://github.com/golang/go/tree/383b447e0da5bd1fcdc2439230b5a1d3e3402117/src/runtime">go/src/runtime at 383b447e0da5bd1fcdc2439230b5a1d3e3402117</a></p>
+<p>以Linux平台上的实现为例：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-bullet">- </span>runtime.sysAlloc 会从操作系统中获取一大块可用的内存空间，可能为几百 KB 或者几 MB<br><span class="hljs-bullet">- </span>runtime.sysFree 会在程序发生内存不足（Out-of Memory，OOM）时调用并无条件地返回内存<br><span class="hljs-bullet">- </span>runtime.sysReserve 会保留操作系统中的一片内存区域，对这片内存的访问会触发异常<br><span class="hljs-bullet">- </span>runtime.sysMap 保证内存区域可以快速转换至准备就绪<br><span class="hljs-bullet">- </span>runtime.sysUsed 通知操作系统应用程序需要使用该内存区域，需要保证内存区域可以安全访问<br><span class="hljs-bullet">- </span>runtime.sysUnused 通知操作系统虚拟内存对应的物理内存已经不再需要了，它可以重用物理内存<br><span class="hljs-bullet">- </span>runtime.sysFault 将内存区域转换成保留状态，主要用于运行时的调试<br></code></pre></td></tr></table></figure>
+
+<h3><span id="3内存管理组件">3.内存管理组件</span></h3><p>Go 语言的内存分配器包含内存管理单元、线程缓存、中心缓存和页堆，对应数据结构：</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs gradle">内存管理单元：<span class="hljs-keyword">runtime</span>.mspan<br>线程缓存：<span class="hljs-keyword">runtime</span>.mcache<br>中心缓存：<span class="hljs-keyword">runtime</span>.mcentral<br>页堆：<span class="hljs-keyword">runtime</span>.mheap<br></code></pre></td></tr></table></figure>
+
+<p>Golang内存布局如下：</p>
+<img src="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%99%A8/go-memory-layout.png" srcset="/img/loading.gif" lazyload class title="golang 内存布局">
+
+<h4><span id="31-内存管理单元-mspan">3.1 内存管理单元 mspan</span></h4><p>runtime.mspan 是 Go 语言内存管理的基本单元，该结构体中包含 next 和 prev 两个字段，它们分别指向了前一个和后一个 runtime.mspan：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs awk">type mspan struct &#123;<br>    <span class="hljs-keyword">next</span> *mspan         <span class="hljs-regexp">//</span> 前向指针<br>    prev *mspan         <span class="hljs-regexp">//</span> 后向指针<br>    startAddr uintptr   <span class="hljs-regexp">//</span> 起始地址<br>    npages    uintptr   <span class="hljs-regexp">//</span> 管理的页数<br>    freeindex uintptr   <span class="hljs-regexp">//</span> 空闲对象的初始索引<br>    <br>    nelems uintptr      <span class="hljs-regexp">//</span> 块个数，有多少个块可供分配<br>    allocBits *gcBits   <span class="hljs-regexp">//</span> 分配位图（块是否被分配）<br>    gcmarkBits *gcBits  <span class="hljs-regexp">//</span> 标记位图（用于GC）<br>    <br>    allocCount uint16   <span class="hljs-regexp">//</span> 已分配块的个数<br>    spanClass spanClass <span class="hljs-regexp">//</span> 跨度类 - 存储的对象大小和个数<br>    elemsize uintptr    <span class="hljs-regexp">//</span> 块大小<br>    <br>    state mSpanStateBox <span class="hljs-regexp">//</span> 内存管理单元的状态：mSpanDead，mSpanInUse，mSpanManual，mSpanFree<br>    <br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通过next和prev串联后，得到双向链表runtime.mSpanList，存储双向链表的头结点和尾节点并在线程缓存以及中心缓存使用：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> mSpanList heads a linked list of spans.<br><span class="hljs-regexp">//</span><br><span class="hljs-regexp">//g</span>o:notinheap<br>type mSpanList struct &#123;<br>	first *mspan <span class="hljs-regexp">//</span> first span <span class="hljs-keyword">in</span> list, or nil <span class="hljs-keyword">if</span> none<br>	last  *mspan <span class="hljs-regexp">//</span> last span <span class="hljs-keyword">in</span> list, or nil <span class="hljs-keyword">if</span> none<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h5><span id="311-mspan中管理的-页和内存">3.1.1 mspan中管理的 页和内存</span></h5><p>每个 span 管理 npage 个大小为8KB的页(虚拟内存中的页，实际大小为操作系统页的整数倍)，涉及到的字段如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">type</span> mspan <span class="hljs-keyword">struct</span> &#123;<br>	startAddr <span class="hljs-keyword">uintptr</span> <span class="hljs-comment">// 起始地址</span><br>	npages    <span class="hljs-keyword">uintptr</span> <span class="hljs-comment">// 页数</span><br>	freeindex <span class="hljs-keyword">uintptr</span><br><br>	allocBits  *gcBits<br>	gcmarkBits *gcBits<br>	allocCache <span class="hljs-keyword">uint64</span><br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc"><span class="hljs-bullet">- </span>startAddr 和 npages — 确定该结构体管理的多个页所在的内存，每个页的大小都是 8KB<br><span class="hljs-bullet">- </span>freeindex — 扫描页中空闲对象的初始索引<br><span class="hljs-bullet">- </span>allocBits 和 gcmarkBits — 分别用于标记内存的占用和回收情况<br><span class="hljs-bullet">- </span>allocCache — allocBits 的补码，可以用于快速查找内存中未被使用的内存<br></code></pre></td></tr></table></figure>
+
+<p>内存分配过程：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs stylus">当用户程序或者线程向 runtime<span class="hljs-selector-class">.mspan</span> 申请内存时，<br>该结构会使用 allocCache(allocBits的补码) 字段以对象为单位在管理的内存中快速查找待分配的空间：<br><span class="hljs-number">1</span>.能找到空闲的内存单元，直接返回<br><span class="hljs-number">2</span>.找不到空闲的内存单元，上一级的组件 runtime<span class="hljs-selector-class">.mcache</span> 会为调用 runtime<span class="hljs-selector-class">.mcache</span><span class="hljs-selector-class">.refill</span><br>更新内存管理单元以满足为更多对象分配内存的需求<br></code></pre></td></tr></table></figure>
+
+<h5><span id="312-mspan的状态">3.1.2 mspan的状态</span></h5><p>运行时会使用 runtime.mSpanStateBox 结构体存储内存管理单元的状态 runtime.mSpanState：</p>
+<figure class="highlight pf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs pf">type mspan struct &#123;<br>	...<br>	<span class="hljs-keyword">state</span>       mSpanStateBox<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>mSpanStateBox结构体 与mSpanState：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">type</span> mSpanState <span class="hljs-keyword">uint8</span><br><br><span class="hljs-keyword">const</span> (<br>	mSpanDead   mSpanState = <span class="hljs-literal">iota</span><br>	mSpanInUse             <span class="hljs-comment">// allocated for garbage collected heap</span><br>	mSpanManual            <span class="hljs-comment">// allocated for manual management (e.g., stack allocator)</span><br>)<br><br><span class="hljs-comment">// mSpanStateNames are the names of the span states, indexed by mSpanState.</span><br><span class="hljs-keyword">var</span> mSpanStateNames = []<span class="hljs-keyword">string</span>&#123;<br>	<span class="hljs-string">&quot;mSpanDead&quot;</span>,<br>	<span class="hljs-string">&quot;mSpanInUse&quot;</span>,<br>	<span class="hljs-string">&quot;mSpanManual&quot;</span>,<br>	<span class="hljs-string">&quot;mSpanFree&quot;</span>,<br>&#125;<br><br><span class="hljs-keyword">type</span> mSpanStateBox <span class="hljs-keyword">struct</span> &#123;<br>	s mSpanState<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>状态间的转换：</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs asciidoc">1.当 runtime.mspan 在空闲堆中，它会处于 mSpanFree 状态<br>2.当 runtime.mspan 已经被分配时，它会处于 mSpanInUse、mSpanManual状态，这些状态会在遵循以下规则发生转换：<br><span class="hljs-bullet">- </span>在垃圾回收的任意阶段，可能从 mSpanFree 转换到 mSpanInUse 和 mSpanManual；<br><span class="hljs-bullet">- </span>在垃圾回收的清除阶段，可能从 mSpanInUse 和 mSpanManual 转换到 mSpanFree；<br><span class="hljs-bullet">- </span>在垃圾回收的标记阶段，不能从 mSpanInUse 和 mSpanManual 转换到 mSpanFree；<br></code></pre></td></tr></table></figure>
+
+<h5><span id="313-spanclass-跨度类-mspan中存储对象大小和个数">3.1.3 spanClass 跨度类 - mspan中存储对象大小和个数</span></h5><p>mspan结构体中的spanClass字段：</p>
+<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs elm"><span class="hljs-keyword">type</span> mspan struct &#123;<br>	...<br>	spanclass   spanClass<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>spanClass的定义：</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">type</span> spanClass uint<span class="hljs-number">8</span><br><span class="hljs-attribute">uint8</span>: 前<span class="hljs-number">7</span>位存储跨度类ID：<span class="hljs-number">0</span>-<span class="hljs-number">127</span>，最后<span class="hljs-number">1</span>位表示是否包含指针 <span class="hljs-number">0</span>-不包含指针 <span class="hljs-number">1</span>-包含指针）<br></code></pre></td></tr></table></figure>
+
+<p>Go 语言的内存管理模块中一共包含 67 种跨度类，<br>每一个跨度类都会存储特定大小的对象并且包含特定数量的页数以及对象，<br>所有的数据都会被预选计算好并存储在 runtime.class_to_size 和 runtime.class_to_allocnpages 等变量中：</p>
+<p>超过 32KB 大小的对象由 ID=0 的class表示</p>
+<table>
+<thead>
+<tr>
+<th>class</th>
+<th>bytes/obj</th>
+<th>bytes/span</th>
+<th>objects</th>
+<th>tail waste</th>
+<th>max waste</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>8</td>
+<td>8192</td>
+<td>1024</td>
+<td>0</td>
+<td>87.50%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>16</td>
+<td>8192</td>
+<td>512</td>
+<td>0</td>
+<td>43.75%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>32</td>
+<td>8192</td>
+<td>256</td>
+<td>0</td>
+<td>46.88%</td>
+</tr>
+<tr>
+<td>4</td>
+<td>48</td>
+<td>8192</td>
+<td>170</td>
+<td>32</td>
+<td>31.52%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>64</td>
+<td>8192</td>
+<td>128</td>
+<td>0</td>
+<td>23.44%</td>
+</tr>
+<tr>
+<td>6</td>
+<td>80</td>
+<td>8192</td>
+<td>102</td>
+<td>32</td>
+<td>19.07%</td>
+</tr>
+<tr>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+<tr>
+<td>66</td>
+<td>32768</td>
+<td>32768</td>
+<td>1</td>
+<td>0</td>
+<td>12.50%</td>
+</tr>
+</tbody></table>
+<p>以ID=10的class为例：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs routeros">当前页大小为8KB，<span class="hljs-attribute">npages</span>=1<br>每个对象的大小为144 B，<span class="hljs-attribute">elemsize</span>=144 B<br>可以计算出当前页可以存放 8<span class="hljs-number">*1024</span> B/ 144 B = 56.8 取整=56个对象，<span class="hljs-attribute">nelems</span>=56<br>当前页面浪费了 8<span class="hljs-number">*1024</span>-144<span class="hljs-number">*56</span> B = 128 B<br></code></pre></td></tr></table></figure>
+
+<h4><span id="32-线程缓存-mcache">3.2 线程缓存 mcache</span></h4><p>Golang中的线程缓存会与线程上的处理器一一绑定，缓存用户程序申请的微小对象：(0, 16B)</p>
+<p>mcache结构体：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">type</span> mcache <span class="hljs-keyword">struct</span> &#123;<br>    ...<br>	<span class="hljs-comment">// tiny is a heap pointer. Since mcache is in non-GC&#x27;d memory,</span><br>	<span class="hljs-comment">// we handle it by clearing it in releaseAll during mark</span><br>	<span class="hljs-comment">// termination.</span><br>	tiny             <span class="hljs-keyword">uintptr</span><br>	tinyoffset       <span class="hljs-keyword">uintptr</span><br>	local_tinyallocs <span class="hljs-keyword">uintptr</span> <span class="hljs-comment">// number of tiny allocs not counted in other stats</span><br><br>	<span class="hljs-comment">// The rest is not accessed on every malloc.</span><br>	alloc [numSpanClasses]*mspan <span class="hljs-comment">// spans to allocate from, indexed by spanClass</span><br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>线程缓存在刚刚被初始化时是不包含 runtime.mspan 的，<br>只有当用户程序申请内存时才会从上一级组件（central）获取新的 runtime.mspan 满足内存分配的需求。</p>
+<h5><span id="321-初始化">3.2.1 初始化</span></h5><p>运行时在初始化处理器时会调用 runtime.allocmcache 初始化线程缓存，<br>该函数会在系统栈中使用 runtime.mheap 中的线程缓存分配器初始化新的 runtime.mcache 结构体：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// dummy mspan that contains no free objects.</span><br><span class="hljs-selector-tag">var</span> emptymspan mspan<br><br>func allocmcache() *mcache &#123;<br>	<span class="hljs-selector-tag">var</span> c *mcache<br>	systemstack(func() &#123;<br>		lock(&amp;mheap_.lock)<br>		c = (*mcache)(mheap_<span class="hljs-selector-class">.cachealloc</span><span class="hljs-selector-class">.alloc</span>())<br>		c<span class="hljs-selector-class">.flushGen</span> = mheap_<span class="hljs-selector-class">.sweepgen</span><br>		unlock(&amp;mheap_.lock)<br>	&#125;)<br>	<span class="hljs-keyword">for</span> <span class="hljs-selector-tag">i</span> := range c<span class="hljs-selector-class">.alloc</span> &#123;<br>		c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[i]</span> = &amp;emptymspan<br>	&#125;<br>	return c<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>初始化后的 runtime.mcache 中的所有 runtime.mspan 都是空的占位符 emptymspan。</p>
+<h5><span id="322-替换">3.2.2 替换</span></h5><p>runtime.mcache.refill() 方法会为线程缓存获取一个指定跨度类的内存管理单元，被替换的单元不能包含空闲的内存空间，而获取的单元中需要至少包含一个空闲对象用于分配内存：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs stylus">func (c *mcache) refill(spc spanClass) &#123;<br>	s := c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[spc]</span><br>	s = mheap_<span class="hljs-selector-class">.central</span><span class="hljs-selector-attr">[spc]</span><span class="hljs-selector-class">.mcentral</span><span class="hljs-selector-class">.cacheSpan</span>()<br>	c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[spc]</span> = s<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>如上述代码所示，该函数会从中心缓存中申请新的 runtime.mspan 存储到线程缓存中，这也是向线程缓存中插入内存管理单元的唯一方法。</p>
+<h5><span id="323-微分配器">3.2.3 微分配器</span></h5><p>线程缓存中还包含几个用于分配微对象的字段，下面的这三个字段组成了微对象分配器，专门为 16 字节以下的对象申请和管理内存：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">type</span> mcache <span class="hljs-keyword">struct</span> &#123;<br>	tiny             <span class="hljs-keyword">uintptr</span><br>	tinyoffset       <span class="hljs-keyword">uintptr</span><br>	local_tinyallocs <span class="hljs-keyword">uintptr</span><br>&#125;<br></code></pre></td></tr></table></figure>
+<p>微分配器只会用于分配非指针类型的内存，上述三个字段中 tiny 会指向堆中的一篇内存，tinyOffset 是下一个空闲内存所在的偏移量，最后的 local_tinyallocs 会记录内存分配器中分配的对象个数。</p>
+<h4><span id="33-中心缓存-mcentral">3.3 中心缓存 mcentral</span></h4><p>runtime.mcentral 是内存分配器的中心缓存，访问中心缓存中的内存管理单元需要使用互斥锁</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs awk">type mcentral struct &#123;<br>	lock      mutex <span class="hljs-regexp">//</span> 互斥锁<br>	spanclass spanClass <span class="hljs-regexp">//</span> 管理的具体跨度类<br>	nonempty  mSpanList <span class="hljs-regexp">//</span> 非空闲对象的链表<br>	empty     mSpanList <span class="hljs-regexp">//</span> 空闲对象链表<br>    <br>	nmalloc uint64 <span class="hljs-regexp">//</span> 已分配对象的个数<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h5><span id="331-初始化">3.3.1 初始化</span></h5><p>runtime会调用 runtime.mcentral.init() 方法初始化中心缓存，包括了对中心缓存跨度类和两个链表的初始化：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-comment">// Initialize a single central free list.</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> (c <span class="hljs-operator">*</span>mcentral)</span> <span class="hljs-function"><span class="hljs-keyword">init</span>(spc spanClass)</span> &#123;<br>	c.spanclass <span class="hljs-operator">=</span> spc<br>	c.nonempty.<span class="hljs-keyword">init</span>()<br>	c.empty.<span class="hljs-keyword">init</span>()<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>在初始化时，两个链表都不包含任何内存，runtime会扩容结构体持有的两个链表，nmalloc字段也记录了该结构体中分配的对象个数</p>
+<h5><span id="332-内存管理单元">3.3.2 内存管理单元</span></h5><p>调用runtime.mcentral.cacheSpan()方法，获取新的内存管理单元：</p>
+<p>源码逻辑较为复杂：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-number">1</span>.从没有空闲对象的 runtime<span class="hljs-selector-class">.mspan</span> 链表中查找可以使用的内存管理单元<br><span class="hljs-number">2</span>.从有空闲对象的 runtime<span class="hljs-selector-class">.mspan</span> 链表中查找可以使用的内存管理单元<br><span class="hljs-number">3</span>.调用 runtime<span class="hljs-selector-class">.mcentral</span><span class="hljs-selector-class">.grow</span> 从堆中申请新的内存管理单元<br><span class="hljs-number">4</span>.更新内存管理单元的 allocCache 等字段帮助快速分配内存<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// Allocate a span to use in an mcache.</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(c *mcentral)</span> <span class="hljs-title">cacheSpan</span><span class="hljs-params">()</span> *<span class="hljs-title">mspan</span></span> &#123;<br>	<span class="hljs-comment">// Deduct credit for this span allocation and sweep if necessary.</span><br>	spanBytes := <span class="hljs-keyword">uintptr</span>(class_to_allocnpages[c.spanclass.sizeclass()]) * _PageSize<br>	deductSweepCredit(spanBytes, <span class="hljs-number">0</span>)<br>    <span class="hljs-comment">// 加互斥锁</span><br>	lock(&amp;c.lock)<br>	traceDone := <span class="hljs-literal">false</span><br>	<span class="hljs-keyword">if</span> trace.enabled &#123;<br>		traceGCSweepStart()<br>	&#125;<br>	sg := mheap_.sweepgen<br>retry:<br>    <span class="hljs-comment">// Step1. 从非空链表，查找可用的mspan，根据sweepgen判断处理逻辑</span><br>	<span class="hljs-keyword">var</span> s *mspan<br>	<span class="hljs-keyword">for</span> s = c.nonempty.first; s != <span class="hljs-literal">nil</span>; s = s.next &#123;<br>	    <span class="hljs-comment">// 等待回收</span><br>		<span class="hljs-keyword">if</span> s.sweepgen == sg<span class="hljs-number">-2</span> &amp;&amp; atomic.Cas(&amp;s.sweepgen, sg<span class="hljs-number">-2</span>, sg<span class="hljs-number">-1</span>) &#123;<br>			c.nonempty.remove(s)<br>			c.empty.insertBack(s)<br>			<span class="hljs-comment">// 关 互斥锁</span><br>			unlock(&amp;c.lock)<br>			s.sweep(<span class="hljs-literal">true</span>)<br>			<span class="hljs-keyword">goto</span> havespan<br>		&#125;<br>		<span class="hljs-comment">// 正在回收</span><br>		<span class="hljs-keyword">if</span> s.sweepgen == sg<span class="hljs-number">-1</span> &#123;<br>			<span class="hljs-comment">// the span is being swept by background sweeper, skip</span><br>			<span class="hljs-keyword">continue</span><br>		&#125;<br>		<span class="hljs-comment">// 已经回收 s.sweepgen == sg</span><br>		<span class="hljs-comment">// we have a nonempty span that does not require sweeping, allocate from it</span><br>		c.nonempty.remove(s)<br>		c.empty.insertBack(s)<br>		<span class="hljs-comment">// 关 互斥锁</span><br>		unlock(&amp;c.lock)<br>		<span class="hljs-keyword">goto</span> havespan<br>	&#125;<br><br>    <span class="hljs-comment">// Step2. 从空链表，查找可用的mspan，处理逻辑与上面遍历nonempty链表类似</span><br>	<span class="hljs-keyword">for</span> s = c.empty.first; s != <span class="hljs-literal">nil</span>; s = s.next &#123;<br>		<span class="hljs-keyword">if</span> s.sweepgen == sg<span class="hljs-number">-2</span> &amp;&amp; atomic.Cas(&amp;s.sweepgen, sg<span class="hljs-number">-2</span>, sg<span class="hljs-number">-1</span>) &#123;<br>			<span class="hljs-comment">// we have an empty span that requires sweeping,</span><br>			<span class="hljs-comment">// sweep it and see if we can free some space in it</span><br>			c.empty.remove(s)<br>			<span class="hljs-comment">// swept spans are at the end of the list</span><br>			c.empty.insertBack(s)<br>			unlock(&amp;c.lock)<br>			s.sweep(<span class="hljs-literal">true</span>)<br>			freeIndex := s.nextFreeIndex()<br>			<span class="hljs-keyword">if</span> freeIndex != s.nelems &#123;<br>				s.freeindex = freeIndex<br>				<span class="hljs-keyword">goto</span> havespan<br>			&#125;<br>			lock(&amp;c.lock)<br>			<span class="hljs-comment">// the span is still empty after sweep</span><br>			<span class="hljs-comment">// it is already in the empty list, so just retry</span><br>			<span class="hljs-keyword">goto</span> retry<br>		&#125;<br>		<span class="hljs-keyword">if</span> s.sweepgen == sg<span class="hljs-number">-1</span> &#123;<br>			<span class="hljs-comment">// the span is being swept by background sweeper, skip</span><br>			<span class="hljs-keyword">continue</span><br>		&#125;<br>		<span class="hljs-comment">// already swept empty span,</span><br>		<span class="hljs-comment">// all subsequent ones must also be either swept or in process of sweeping</span><br>		<span class="hljs-keyword">break</span><br>	&#125;<br>	<span class="hljs-keyword">if</span> trace.enabled &#123;<br>		traceGCSweepDone()<br>		traceDone = <span class="hljs-literal">true</span><br>	&#125;<br>	unlock(&amp;c.lock)<br><br>	<span class="hljs-comment">// Replenish central list if empty.</span><br>	<span class="hljs-comment">// Step3. 如果nonempty和empty链表都找不到可用的内存单元，调用grow()，从堆中申请新的内存</span><br>	s = c.grow()<br>	<span class="hljs-keyword">if</span> s == <span class="hljs-literal">nil</span> &#123;<br>		<span class="hljs-keyword">return</span> <span class="hljs-literal">nil</span><br>	&#125;<br>	lock(&amp;c.lock)<br>	c.empty.insertBack(s)<br>	unlock(&amp;c.lock)<br><br>	<span class="hljs-comment">// At this point s is a non-empty span, queued at the end of the empty list,</span><br>	<span class="hljs-comment">// c is unlocked.</span><br>havespan:<br>    <span class="hljs-comment">// Step4. 找到了空的mspan，更新内存管理单元的 allocbits，allocCache 等字段帮助快速分配内存</span><br>	<span class="hljs-keyword">if</span> trace.enabled &amp;&amp; !traceDone &#123;<br>		traceGCSweepDone()<br>	&#125;<br>	n := <span class="hljs-keyword">int</span>(s.nelems) - <span class="hljs-keyword">int</span>(s.allocCount)<br>	<span class="hljs-keyword">if</span> n == <span class="hljs-number">0</span> || s.freeindex == s.nelems || <span class="hljs-keyword">uintptr</span>(s.allocCount) == s.nelems &#123;<br>		throw(<span class="hljs-string">&quot;span has no free objects&quot;</span>)<br>	&#125;<br>	<span class="hljs-comment">// Assume all objects from this span will be allocated in the</span><br>	<span class="hljs-comment">// mcache. If it gets uncached, we&#x27;ll adjust this.</span><br>	atomic.Xadd64(&amp;c.nmalloc, <span class="hljs-keyword">int64</span>(n))<br>	usedBytes := <span class="hljs-keyword">uintptr</span>(s.allocCount) * s.elemsize<br>	atomic.Xadd64(&amp;memstats.heap_live, <span class="hljs-keyword">int64</span>(spanBytes)-<span class="hljs-keyword">int64</span>(usedBytes))<br>	<span class="hljs-keyword">if</span> trace.enabled &#123;<br>		<span class="hljs-comment">// heap_live changed.</span><br>		traceHeapAlloc()<br>	&#125;<br>	<span class="hljs-keyword">if</span> gcBlackenEnabled != <span class="hljs-number">0</span> &#123;<br>		<span class="hljs-comment">// heap_live changed.</span><br>		gcController.revise()<br>	&#125;<br>	freeByteBase := s.freeindex &amp;^ (<span class="hljs-number">64</span> - <span class="hljs-number">1</span>)<br>	whichByte := freeByteBase / <span class="hljs-number">8</span><br>	<span class="hljs-comment">// Init alloc bits cache.</span><br>	s.refillAllocCache(whichByte)<br><br>	<span class="hljs-comment">// Adjust the allocCache so that s.freeindex corresponds to the low bit in</span><br>	<span class="hljs-comment">// s.allocCache.</span><br>	s.allocCache &gt;&gt;= s.freeindex % <span class="hljs-number">64</span><br><br>	<span class="hljs-keyword">return</span> s<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<h5><span id="333-扩容">3.3.3 扩容</span></h5><p>如果在中心缓存的nonempty以及empty中都未找到空的mspan，<br>会调用runtime.mcentral.grow() 方法，根据预先计算出的 class_to_allocnpages 以及 class_to_size 获取待分配的页数以及跨度类并调用 runtime.mheap.alloc() 获取新的mspan：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// grow allocates a new empty span from the heap and initializes it for c&#x27;s size class.</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(c *mcentral)</span> <span class="hljs-title">grow</span><span class="hljs-params">()</span> *<span class="hljs-title">mspan</span></span> &#123;<br>	npages := <span class="hljs-keyword">uintptr</span>(class_to_allocnpages[c.spanclass.sizeclass()])<br>	size := <span class="hljs-keyword">uintptr</span>(class_to_size[c.spanclass.sizeclass()])<br><br>	s := mheap_.alloc(npages, c.spanclass, <span class="hljs-literal">true</span>)<br>	<span class="hljs-keyword">if</span> s == <span class="hljs-literal">nil</span> &#123;<br>		<span class="hljs-keyword">return</span> <span class="hljs-literal">nil</span><br>	&#125;<br><br>	<span class="hljs-comment">// Use division by multiplication and shifts to quickly compute:</span><br>	<span class="hljs-comment">// n := (npages &lt;&lt; _PageShift) / size</span><br>	n := (npages &lt;&lt; _PageShift) &gt;&gt; s.divShift * <span class="hljs-keyword">uintptr</span>(s.divMul) &gt;&gt; s.divShift2<br>	s.limit = s.base() + size*n<br>	heapBitsForAddr(s.base()).initSpan(s)<br>	<span class="hljs-keyword">return</span> s<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="34-页堆-mheap">3.4 页堆 mheap</span></h4><p>runtime.mheap 是内存分配的核心结构体，Go语言程序只会存在一个全局的结构，而堆上初始化的所有对象都由该结构体统一管理，该结构体中包含两组非常重要的字段：</p>
+<ul>
+<li>全局的中心缓存列表central</li>
+<li>管理堆区内存区域的 arenas 以及相关字段。</li>
+</ul>
+<p><strong>页堆中包含一个长度为 134 的 runtime.mcentral 数组，其中 67 个为跨度类需要 scan 的中心缓存，另外的 67 个是 noscan 的中心缓存</strong></p>
+<p><strong>scan表示当前对象有指针，需要使用GC进行扫描</strong></p>
+<p><strong>noscan表示当前对象没有指针</strong></p>
+<p>mheap结构体关键字段：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs csharp">type mheap <span class="hljs-keyword">struct</span> &#123;<br>	<span class="hljs-keyword">lock</span>      mutex     <span class="hljs-comment">// 互斥锁</span><br>	...<br>	allspans []*mspan   <span class="hljs-comment">// 当前heap的全部mspan</span><br>    ...<br>    <br>	<span class="hljs-comment">// 二维矩阵heapArena -&gt; 一个headArena管理64MB的空间</span><br>	arenas [<span class="hljs-number">1</span> &lt;&lt; arenaL1Bits]*[<span class="hljs-number">1</span> &lt;&lt; arenaL2Bits]*heapArena<br><br>	<span class="hljs-comment">// 全局的中心缓存列表 numSpanClasses=67*2=134   67表示class类别的个数</span><br>	central [numSpanClasses]<span class="hljs-keyword">struct</span> &#123;<br>		mcentral mcentral<br>		pad      [cpu.CacheLinePadSize - <span class="hljs-keyword">unsafe</span>.Sizeof(mcentral&#123;&#125;)%cpu.CacheLinePadSize]<span class="hljs-built_in">byte</span><br>	&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h5><span id="341-初始化">3.4.1 初始化</span></h5><p>调用runtime.mheap.init() 方法，对堆区进行初始化：</p>
+<ul>
+<li>初始化spanalloc,cachealloc等空闲链表</li>
+<li>初始化central切片中的中心缓存<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-comment">// Initialize the heap.</span><br>func (h *mheap) init() &#123;<br>	h<span class="hljs-selector-class">.spanalloc</span><span class="hljs-selector-class">.init</span>(unsafe<span class="hljs-selector-class">.Sizeof</span>(mspan&#123;&#125;), recordspan, unsafe<span class="hljs-selector-class">.Pointer</span>(h), &amp;memstats.mspan_sys)<br>	h<span class="hljs-selector-class">.cachealloc</span><span class="hljs-selector-class">.init</span>(unsafe<span class="hljs-selector-class">.Sizeof</span>(mcache&#123;&#125;), nil, nil, &amp;memstats.mcache_sys)<br>	h<span class="hljs-selector-class">.specialfinalizeralloc</span><span class="hljs-selector-class">.init</span>(unsafe<span class="hljs-selector-class">.Sizeof</span>(specialfinalizer&#123;&#125;), nil, nil, &amp;memstats.other_sys)<br>	h<span class="hljs-selector-class">.specialprofilealloc</span><span class="hljs-selector-class">.init</span>(unsafe<span class="hljs-selector-class">.Sizeof</span>(specialprofile&#123;&#125;), nil, nil, &amp;memstats.other_sys)<br>	h<span class="hljs-selector-class">.arenaHintAlloc</span><span class="hljs-selector-class">.init</span>(unsafe<span class="hljs-selector-class">.Sizeof</span>(arenaHint&#123;&#125;), nil, nil, &amp;memstats.other_sys)<br>	<br>	h<span class="hljs-selector-class">.spanalloc</span><span class="hljs-selector-class">.zero</span> = false<br><br>	<span class="hljs-keyword">for</span> <span class="hljs-selector-tag">i</span> := range h<span class="hljs-selector-class">.central</span> &#123;<br>		h<span class="hljs-selector-class">.central</span><span class="hljs-selector-attr">[i]</span><span class="hljs-selector-class">.mcentral</span><span class="hljs-selector-class">.init</span>(spanClass(i))<br>	&#125;<br><br>	h<span class="hljs-selector-class">.pages</span><span class="hljs-selector-class">.init</span>(&amp;h<span class="hljs-selector-class">.lock</span>, &amp;memstats.gc_sys)<br>&#125;<br></code></pre></td></tr></table></figure></li>
+</ul>
+<h5><span id="342-内存管理单元">3.4.2 内存管理单元</span></h5><p>runtime会通过runtime.mheap.alloc() 在系统栈中获取新的mspan：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(h *mheap)</span> <span class="hljs-title">alloc</span><span class="hljs-params">(npages <span class="hljs-keyword">uintptr</span>, spanclass spanClass, needzero <span class="hljs-keyword">bool</span>)</span> *<span class="hljs-title">mspan</span></span> &#123;<br>	<span class="hljs-keyword">var</span> s *mspan<br>	systemstack(<span class="hljs-function"><span class="hljs-keyword">func</span><span class="hljs-params">()</span></span> &#123;<br>		<span class="hljs-keyword">if</span> h.sweepdone == <span class="hljs-number">0</span> &#123;<br>		    <span class="hljs-comment">// 回收一部分内存</span><br>			h.reclaim(npages)<br>		&#125;<br>		<span class="hljs-comment">// 分配新的mspan</span><br>		s = h.allocSpan(npages, <span class="hljs-literal">false</span>, spanclass, &amp;memstats.heap_inuse)<br>	&#125;)<br>	...<br>	<span class="hljs-keyword">return</span> s<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>代码逻辑：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-number">1</span>.为了阻止内存的大量占用和堆的增长，我们在分配对应页数的内存前需要先调用 runtime<span class="hljs-selector-class">.mheap</span><span class="hljs-selector-class">.reclaim</span> 方法回收一部分内存<br><span class="hljs-number">2</span>.通过allocSpan() 获取新的mspan<br></code></pre></td></tr></table></figure>
+
+<p>allocSpan()的执行过程分为两步：</p>
+<ul>
+<li>从堆上分配新的内存页和内存管理单元mspan</li>
+<li>初始化管理内存单元，并将mspan加入到mheap的列表中</li>
+</ul>
+<p>allocSpan() 的实现代码如下：（详细实现间源码）</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(h *mheap)</span> <span class="hljs-title">allocSpan</span><span class="hljs-params">(npages <span class="hljs-keyword">uintptr</span>, manual <span class="hljs-keyword">bool</span>, spanclass spanClass, sysStat *<span class="hljs-keyword">uint64</span>)</span> <span class="hljs-params">(s *mspan)</span></span> &#123;<br>	gp := getg()<br>	base, scav := <span class="hljs-keyword">uintptr</span>(<span class="hljs-number">0</span>), <span class="hljs-keyword">uintptr</span>(<span class="hljs-number">0</span>)<br>	pp := gp.m.p.ptr()<br>	<span class="hljs-keyword">if</span> pp != <span class="hljs-literal">nil</span> &amp;&amp; npages &lt; pageCachePages/<span class="hljs-number">4</span> &#123;<br>		c := &amp;pp.pcache<br>		base, scav = c.alloc(npages)<br>		<span class="hljs-keyword">if</span> base != <span class="hljs-number">0</span> &#123;<br>			s = h.tryAllocMSpan()<br>			<span class="hljs-keyword">if</span> s != <span class="hljs-literal">nil</span> &amp;&amp; gcBlackenEnabled == <span class="hljs-number">0</span> &amp;&amp; (manual || spanclass.sizeclass() != <span class="hljs-number">0</span>) &#123;<br>				<span class="hljs-keyword">goto</span> HaveSpan<br>			&#125;<br>		&#125;<br>	&#125;<br><br>	<span class="hljs-keyword">if</span> base == <span class="hljs-number">0</span> &#123;<br>		base, scav = h.pages.alloc(npages)<br>		<span class="hljs-keyword">if</span> base == <span class="hljs-number">0</span> &#123;<br>			h.grow(npages)<br>            base, scav = h.pages.alloc(npages)<br>			<span class="hljs-keyword">if</span> base == <span class="hljs-number">0</span> &#123;<br>				throw(<span class="hljs-string">&quot;grew heap, but no adequate free space found&quot;</span>)<br>			&#125;<br>		&#125;<br>	&#125;<br>	<span class="hljs-keyword">if</span> s == <span class="hljs-literal">nil</span> &#123;<br>		s = h.allocMSpanLocked()<br>	&#125;<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h5><span id="343-扩容">3.4.3 扩容</span></h5><p>runtime通过调用 runtime.mheap.grow() 方法，向操作系统申请更多的内存空间。该方法的执行过程分为：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-number">1</span>.通过传入的页数获取期望分配的内存空间大小以及内存的基地址<br><span class="hljs-number">2</span>.如果 arena 区域没有足够的空间，调用 runtime<span class="hljs-selector-class">.mheap</span><span class="hljs-selector-class">.sysAlloc</span> 从操作系统中申请更多的内存<br><span class="hljs-number">3</span>.扩容 runtime<span class="hljs-selector-class">.mheap</span> 持有的 arena 区域并更新页分配器的元信息<br><span class="hljs-number">4</span>.在某些场景下，调用 runtime<span class="hljs-selector-class">.pageAlloc</span><span class="hljs-selector-class">.scavenge</span> 回收不再使用的空闲内存页<br></code></pre></td></tr></table></figure>
+
+<p>在页堆扩容的过程中，runtime.mheap.sysAlloc 是页堆用来申请虚拟内存的方法，该方法的实现分为多步：</p>
+<ul>
+<li><p>首先，该方法会尝试在预保留的区域申请内存：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(h *mheap)</span> <span class="hljs-title">sysAlloc</span><span class="hljs-params">(n <span class="hljs-keyword">uintptr</span>)</span> <span class="hljs-params">(v unsafe.Pointer, size <span class="hljs-keyword">uintptr</span>)</span></span> &#123;<br>	n = alignUp(n, heapArenaBytes)<br><br>	v = h.arena.alloc(n, heapArenaBytes, &amp;memstats.heap_sys)<br>	<span class="hljs-keyword">if</span> v != <span class="hljs-literal">nil</span> &#123;<br>		size = n<br>		<span class="hljs-keyword">goto</span> mapped<br>	&#125;<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>调用线性分配器的 runtime.linearAlloc.alloc 方法在预先保留的内存中申请一块可以使用的空间。  </p>
+</li>
+<li><p>如果没有可用的空间，会根据页堆的 arenaHints 在目标地址上尝试扩容：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs stylus">func (h *mheap) sysAlloc(n uintptr) (v unsafe<span class="hljs-selector-class">.Pointer</span>, size uintptr) &#123;<br>	...<br>	<span class="hljs-keyword">for</span> h<span class="hljs-selector-class">.arenaHints</span> != nil &#123;<br>		hint := h<span class="hljs-selector-class">.arenaHints</span><br>		<span class="hljs-selector-tag">p</span> := hint<span class="hljs-selector-class">.addr</span><br>		v = sysReserve(unsafe<span class="hljs-selector-class">.Pointer</span>(p), n)<br>		<span class="hljs-keyword">if</span> <span class="hljs-selector-tag">p</span> == uintptr(v) &#123;<br>			hint<span class="hljs-selector-class">.addr</span> = <span class="hljs-selector-tag">p</span><br>			size = n<br>			break<br>		&#125;<br>		h<span class="hljs-selector-class">.arenaHints</span> = hint<span class="hljs-selector-class">.next</span><br>		h<span class="hljs-selector-class">.arenaHintAlloc</span><span class="hljs-selector-class">.free</span>(unsafe<span class="hljs-selector-class">.Pointer</span>(hint))<br>	&#125;<br>	...<br>	sysMap(v, size, &amp;memstats.heap_sys)<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>runtime.sysReserve 和 runtime.sysMap 会从操作系统中申请内存并将内存转换至 Prepared 状态。</p>
+</li>
+</ul>
+<figure class="highlight roboconf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs roboconf">func (h *mheap) sysAlloc(n uintptr) (v unsafe.Pointer, size uintptr) &#123;<br>	...<br><span class="hljs-attribute">mapped</span>:<br>	for ri := arenaIndex(uintptr(v)); <span class="hljs-attribute">ri &lt;= arenaIndex(uintptr(v)+size-1); ri++ &#123;</span><br><span class="hljs-attribute">		l2</span> := h<span class="hljs-variable">.arenas</span>[ri<span class="hljs-variable">.l</span>1()]<br>		r := (*heapArena)(h<span class="hljs-variable">.heapArenaAlloc</span><span class="hljs-variable">.alloc</span>(unsafe<span class="hljs-variable">.Sizeof</span>(*r), sys<span class="hljs-variable">.PtrSize</span>, &amp;memstats<span class="hljs-variable">.gc_sys</span>))<br>		...<br>		h<span class="hljs-variable">.allArenas</span> = h<span class="hljs-variable">.allArenas</span>[:len(h<span class="hljs-variable">.allArenas</span>)+1]<br>		h<span class="hljs-variable">.allArenas</span>[len(h<span class="hljs-variable">.allArenas</span>)-1] = ri<br>		atomic<span class="hljs-variable">.StorepNoWB</span>(unsafe<span class="hljs-variable">.Pointer</span>(&amp;l2[ri<span class="hljs-variable">.l</span>2()]), unsafe<span class="hljs-variable">.Pointer</span>(r))<br>	&#125;<br>	return<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>runtime.mheap.sysAlloc 方法在最后会初始化一个新的 runtime.heapArena 结构体来管理刚刚申请的内存空间，该结构体会被加入页堆的二维矩阵heapArena中。</p>
+<h3><span id="4内存分配">4.内存分配</span></h3><p>堆上所有的对象都会通过调用 runtime.newobject 函数分配内存，该函数会调用 runtime.mallocgc 分配指定大小的内存空间，这也是用户程序向堆上申请内存空间的必经函数：</p>
+<p>runtime.newonject()实现：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs swift"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">newobject</span>(typ <span class="hljs-operator">*</span>_type)</span> unsafe.<span class="hljs-type">Pointer</span> &#123;<br>	<span class="hljs-keyword">return</span> mallocgc(typ.size, typ, <span class="hljs-literal">true</span>)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>mallocgc()实现逻辑：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">mallocgc</span><span class="hljs-params">(size <span class="hljs-keyword">uintptr</span>, typ *_type, needzero <span class="hljs-keyword">bool</span>)</span> <span class="hljs-title">unsafe</span>.<span class="hljs-title">Pointer</span></span> &#123;<br>	mp := acquirem()<br>	mp.mallocing = <span class="hljs-number">1</span><br><br>    <span class="hljs-comment">// 获取线程缓存</span><br>	c := gomcache()<br>	<span class="hljs-keyword">var</span> x unsafe.Pointer<br>	noscan := typ == <span class="hljs-literal">nil</span> || typ.ptrdata == <span class="hljs-number">0</span><br>	<span class="hljs-keyword">if</span> size &lt;= maxSmallSize &#123;<br>	    <span class="hljs-comment">// 根据对象大小判断分配逻辑</span><br>		<span class="hljs-keyword">if</span> noscan &amp;&amp; size &lt; maxTinySize &#123;<br>			<span class="hljs-comment">// 微对象分配</span><br>		&#125; <span class="hljs-keyword">else</span> &#123;<br>			<span class="hljs-comment">// 小对象分配</span><br>		&#125;<br>	&#125; <span class="hljs-keyword">else</span> &#123;<br>		<span class="hljs-comment">// 大对象分配</span><br>	&#125;<br><br>	publicationBarrier()<br>	mp.mallocing = <span class="hljs-number">0</span><br>	releasem(mp)<br><br>	<span class="hljs-keyword">return</span> x<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>三种对象：</p>
+<figure class="highlight scss"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs scss">微对象 (<span class="hljs-number">0</span>, <span class="hljs-number">16</span>B) — 先使用微型分配器，再依次尝试线程缓存、中心缓存和堆分配内存<br>小对象 <span class="hljs-selector-attr">[16B, 32KB]</span> — 依次尝试使用线程缓存、中心缓存和堆分配内存<br>大对象 (<span class="hljs-number">32</span>KB, +∞) — 直接在堆上分配内存<br></code></pre></td></tr></table></figure>
+
+<h4><span id="41-微对象">4.1 微对象</span></h4><p>微对象的分配策略：</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs gradle"><span class="hljs-number">1</span>.如果当前块中还包含大小合适的空闲内存，<span class="hljs-keyword">runtime</span>可以直接通过base addr和 offset获取并返回内存<br><span class="hljs-number">2</span>.如果内存块的内存不够用：<br>- 先从线程缓存找到跨度类<span class="hljs-keyword">class</span>对应的内存管理单元mspan，调用<span class="hljs-keyword">runtime</span>.nextFreeFast() 获取空闲的内存<br>- 线程缓存找不到空闲内存时，调用<span class="hljs-keyword">runtime</span>.mcache.nextFree() 从中心缓存或者页堆获取内存块<br></code></pre></td></tr></table></figure>
+
+<p>实现代码：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs arduino"><span class="hljs-function">func <span class="hljs-title">mallocgc</span><span class="hljs-params">(size uintptr, typ *_type, needzero <span class="hljs-keyword">bool</span>)</span> unsafe.Pointer </span>&#123;<br>	...<br>	<span class="hljs-keyword">if</span> size &lt;= maxSmallSize &#123;<br>		<span class="hljs-keyword">if</span> noscan &amp;&amp; size &lt; maxTinySize &#123; <span class="hljs-comment">// 微对象分配</span><br>		    <span class="hljs-comment">// 计算偏移量 offset</span><br>			off := c.tinyoffset<br>			<span class="hljs-comment">// 判断当前块是否够用</span><br>			<span class="hljs-keyword">if</span> off+size &lt;= maxTinySize &amp;&amp; c.tiny != <span class="hljs-number">0</span> &#123;<br>			    <span class="hljs-comment">// tiny + off 获取内存</span><br>				x = unsafe.<span class="hljs-built_in">Pointer</span>(c.tiny + off)<br>				c.tinyoffset = off + size<br>				c.local_tinyallocs++<br>				<span class="hljs-built_in">releasem</span>(mp)<br>				<span class="hljs-keyword">return</span> x<br>			&#125;<br>			<span class="hljs-comment">// 当前内存块不够用，从线程缓存，中心缓存，页堆中获取</span><br>			span := c.alloc[tinySpanClass]<br>			<span class="hljs-comment">// 是否可以从线程缓存中获取内存块</span><br>			v := <span class="hljs-built_in">nextFreeFast</span>(span)<br>			<span class="hljs-keyword">if</span> v == <span class="hljs-number">0</span> &#123;<br>			    <span class="hljs-comment">// 到中心缓存或者页堆中获取内存块</span><br>				v, _, _ = c.<span class="hljs-built_in">nextFree</span>(tinySpanClass)<br>			&#125;<br>			x = unsafe.<span class="hljs-built_in">Pointer</span>(v)<br>			(*[<span class="hljs-number">2</span>]uint64)(x)[<span class="hljs-number">0</span>] = <span class="hljs-number">0</span><br>			(*[<span class="hljs-number">2</span>]uint64)(x)[<span class="hljs-number">1</span>] = <span class="hljs-number">0</span><br>			<span class="hljs-keyword">if</span> size &lt; c.tinyoffset || c.tiny == <span class="hljs-number">0</span> &#123;<br>				c.tiny = <span class="hljs-built_in">uintptr</span>(x)<br>				c.tinyoffset = size<br>			&#125;<br>			size = maxTinySize<br>		&#125;<br>		...<br>	&#125;<br>	...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="42-小对象">4.2 小对象</span></h4><p>小对象的分配策略：</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs gradle"><span class="hljs-number">1</span>.确定分配对象大小以及跨度类spanClass<br><span class="hljs-number">2</span>.从线程缓存，中心缓存或者页堆中获取内存管理单元，并从内存管理单元找到空闲的内存空间<br><span class="hljs-number">3</span>.调用<span class="hljs-keyword">runtime</span>.memclrNoHeapPointers() 方法清理空闲内存中的所有数据<br></code></pre></td></tr></table></figure>
+
+<p>实现代码：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs stylus">func mallocgc(size uintptr, typ *_type, needzero bool) unsafe<span class="hljs-selector-class">.Pointer</span> &#123;<br>	...<br>	<span class="hljs-keyword">if</span> size &lt;= maxSmallSize &#123;<br>		...<br>		&#125; <span class="hljs-keyword">else</span> &#123; <span class="hljs-comment">// 分配 小对象</span><br>		    <span class="hljs-comment">// 计算要分配的对象的大小</span><br>			<span class="hljs-selector-tag">var</span> sizeclass uint8<br>			<span class="hljs-keyword">if</span> size &lt;= smallSizeMax-<span class="hljs-number">8</span> &#123;<br>				sizeclass = size_to_class8<span class="hljs-selector-attr">[(size+smallSizeDiv-1)/smallSizeDiv]</span><br>			&#125; <span class="hljs-keyword">else</span> &#123;<br>				sizeclass = size_to_class128<span class="hljs-selector-attr">[(size-smallSizeMax+largeSizeDiv-1)/largeSizeDiv]</span><br>			&#125;<br>			size = uintptr(class_to_size<span class="hljs-selector-attr">[sizeclass]</span>)<br>			<span class="hljs-comment">// 确定spanClass</span><br>			spc := makeSpanClass(sizeclass, noscan)<br>			<span class="hljs-selector-tag">span</span> := c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[spc]</span><br>			<span class="hljs-comment">// 先去线程缓存获取内存管理单元</span><br>			v := nextFreeFast(span)<br>			<span class="hljs-keyword">if</span> v == <span class="hljs-number">0</span> &#123; <span class="hljs-comment">// 线程缓存找不到</span><br>			    <span class="hljs-comment">// 到中心缓存，页堆中寻找</span><br>				v, <span class="hljs-selector-tag">span</span>, _ = c<span class="hljs-selector-class">.nextFree</span>(spc)<br>			&#125;<br>			x = unsafe<span class="hljs-selector-class">.Pointer</span>(v)<br>			<span class="hljs-keyword">if</span> needzero &amp;&amp; <span class="hljs-selector-tag">span</span><span class="hljs-selector-class">.needzero</span> != <span class="hljs-number">0</span> &#123;<br>			    <span class="hljs-comment">// 清理空闲内存中的所有数据</span><br>				memclrNoHeapPointers(unsafe<span class="hljs-selector-class">.Pointer</span>(v), size)<br>			&#125;<br>		&#125;<br>	&#125; <span class="hljs-keyword">else</span> &#123;<br>		...<br>	&#125;<br>	...<br>	return x<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>nextFreeFast() 实现：</p>
+<figure class="highlight roboconf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs roboconf">func nextFreeFast(s *mspan) gclinkptr &#123;<br>	<span class="hljs-attribute">theBit</span> := sys<span class="hljs-variable">.Ctz</span>64(s<span class="hljs-variable">.allocCache</span>)<br>	if theBit &lt; 64 &#123;<br>		result := s<span class="hljs-variable">.freeindex</span> + uintptr(theBit)<br>		if result &lt; s<span class="hljs-variable">.nelems</span> &#123;<br>			freeidx := result + 1<br>			if freeidx%64 == 0 &amp;&amp; freeidx != s<span class="hljs-variable">.nelems</span> &#123;<br>				return 0<br>			&#125;<br>			s<span class="hljs-variable">.allocCache</span> &gt;&gt;= uint(theBit + 1)<br>			s<span class="hljs-variable">.freeindex</span> = freeidx<br>			s<span class="hljs-variable">.allocCount</span>++<br>			return gclinkptr(result*s<span class="hljs-variable">.elemsize</span> + s<span class="hljs-variable">.base</span>())<br>		&#125;<br>	&#125;<br>	return 0<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>nextFree() 实现：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs stylus">func (c *mcache) nextFree(spc spanClass) (v gclinkptr, s *mspan, shouldhelpgc bool) &#123;<br>	s = c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[spc]</span><br>	freeIndex := s<span class="hljs-selector-class">.nextFreeIndex</span>()<br>	<span class="hljs-keyword">if</span> freeIndex == s<span class="hljs-selector-class">.nelems</span> &#123;<br>		c<span class="hljs-selector-class">.refill</span>(spc)<br>		s = c<span class="hljs-selector-class">.alloc</span><span class="hljs-selector-attr">[spc]</span><br>		freeIndex = s<span class="hljs-selector-class">.nextFreeIndex</span>()<br>	&#125;<br><br>	v = gclinkptr(freeIndex*s<span class="hljs-selector-class">.elemsize</span> + s<span class="hljs-selector-class">.base</span>())<br>	s.allocCount++<br>	return<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="43-大对象">4.3 大对象</span></h4><p>大于32KB 的对象直接在系统的栈中调用 runtime.largeAlloc() 分配大片的内存：</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs reasonml">func mallocgc(size uintptr, typ *_type, needzero <span class="hljs-built_in">bool</span>) unsafe.Pointer &#123;<span class="hljs-operator"></span><br><span class="hljs-operator">	...</span><br><span class="hljs-operator">	</span><span class="hljs-keyword">if</span> size &lt;= maxSmallSize &#123;<span class="hljs-operator"></span><br><span class="hljs-operator">		...</span><br><span class="hljs-operator">	</span>&#125; <span class="hljs-keyword">else</span> &#123; <span class="hljs-comment">// 判断为 大对象</span><br>		var s *mspan<br>		systemstack(func<span class="hljs-literal">()</span> &#123;<br>		    <span class="hljs-comment">// 调用largeAlloc()</span><br>			s = large<span class="hljs-constructor">Alloc(<span class="hljs-params">size</span>, <span class="hljs-params">needzero</span>, <span class="hljs-params">noscan</span>)</span><br>		&#125;)<br>		s.freeindex = <span class="hljs-number">1</span><br>		s.allocCount = <span class="hljs-number">1</span><br>		x = unsafe.<span class="hljs-constructor">Pointer(<span class="hljs-params">s</span>.<span class="hljs-params">base</span>()</span>)<br>		size = s.elemsize<br>	&#125;<br><br>	publication<span class="hljs-constructor">Barrier()</span><br>	mp.mallocing = <span class="hljs-number">0</span><br>	releasem(mp)<br><br>	return x<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>largeAlloc() 实现：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs arduino"><span class="hljs-function">func <span class="hljs-title">largeAlloc</span><span class="hljs-params">(size uintptr, needzero <span class="hljs-keyword">bool</span>, noscan <span class="hljs-keyword">bool</span>)</span> *mspan </span>&#123;<br>    <span class="hljs-comment">// 大对象跨度类 = 0</span><br>	npages := size &gt;&gt; _PageShift<br>	<span class="hljs-keyword">if</span> size&amp;_PageMask != <span class="hljs-number">0</span> &#123;<br>		npages++<br>	&#125;<br>	...<br>	s := mheap_.<span class="hljs-built_in">alloc</span>(npages, <span class="hljs-built_in">makeSpanClass</span>(<span class="hljs-number">0</span>, noscan), needzero)<br>	s.limit = s.<span class="hljs-built_in">base</span>() + size<br>	<span class="hljs-built_in">heapBitsForAddr</span>(s.<span class="hljs-built_in">base</span>()).<span class="hljs-built_in">initSpan</span>(s)<br>	<span class="hljs-keyword">return</span> s<br>&#125;<br></code></pre></td></tr></table></figure>
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Cap 4: 内存管理 -- 垃圾回收器</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-3-%E5%8D%8F%E7%A8%8B-goroutine/">
+                        <span class="hidden-mobile">Cap 3: 协程 goroutine</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>

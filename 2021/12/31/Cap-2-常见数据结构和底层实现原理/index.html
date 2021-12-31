@@ -1,0 +1,711 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Thomas Yuan">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="1.Channel 管道Golang在语言层面提供的协程通信方式 1.1特性初始化12345var ch chan intorch :&#x3D; make(chan int)orch :&#x3D; make(chan int, 10)  管道操作管道大小 12len():缓冲区数据个数cap():缓冲区大小  数据流入&amp;流出 1234567891011流入(写)：ch &lt;- 1流出(读)：d :&#x3D;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cap 2: 常见数据结构和底层实现原理">
+<meta property="og:url" content="http://example.com/2021/12/31/Cap-2-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86/index.html">
+<meta property="og:site_name" content="Gopher Thomas">
+<meta property="og:description" content="1.Channel 管道Golang在语言层面提供的协程通信方式 1.1特性初始化12345var ch chan intorch :&#x3D; make(chan int)orch :&#x3D; make(chan int, 10)  管道操作管道大小 12len():缓冲区数据个数cap():缓冲区大小  数据流入&amp;流出 1234567891011流入(写)：ch &lt;- 1流出(读)：d :&#x3D;">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-12-31T03:16:28.000Z">
+<meta property="article:modified_time" content="2021-12-31T03:16:56.336Z">
+<meta property="article:author" content="Thomas Yuan">
+<meta property="article:tag" content="《Go专家编程》">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  <title>Cap 2: 常见数据结构和底层实现原理 - Gopher Thomas</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4/github-markdown.min.css" />
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hint.css@2/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.css" />
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.8.13","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","app_key":"PijYR5FjJEAiikcHPtF712qM","server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>TY 札记</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="Cap 2: 常见数据结构和底层实现原理">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-12-31 11:16" pubdate>
+        2021年12月31日 上午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      12k 字
+    </span>
+  
+
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      99 分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        <span id="leancloud-page-views"></span> 次
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">Cap 2: 常见数据结构和底层实现原理</h1>
+            
+            <div class="markdown-body">
+              <h2><span id="1channel-管道">1.Channel 管道</span></h2><p>Golang在语言层面提供的协程通信方式</p>
+<h3><span id="11特性">1.1特性</span></h3><h4><span id="初始化">初始化</span></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">var</span> ch <span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span><br>or<br>ch := <span class="hljs-built_in">make</span>(<span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span>)<br>or<br>ch := <span class="hljs-built_in">make</span>(<span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>)<br></code></pre></td></tr></table></figure>
+
+<h4><span id="管道操作">管道操作</span></h4><p>管道大小</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-function"><span class="hljs-title">len</span><span class="hljs-params">()</span></span>:缓冲区数据个数<br><span class="hljs-function"><span class="hljs-title">cap</span><span class="hljs-params">()</span></span>:缓冲区大小<br></code></pre></td></tr></table></figure>
+
+<p>数据流入&amp;流出</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs clean">流入(写)：<br>ch &lt;- <span class="hljs-number">1</span><br><br>流出(读)：<br>d := &lt;- ch<br><br>d, ok := &lt;- ch<br><span class="hljs-keyword">if</span>(!ok)&#123;<br>    <span class="hljs-comment">// 读取不成功</span><br>&#125;<br><span class="hljs-comment">// 读取成功逻辑</span><br></code></pre></td></tr></table></figure>
+
+<p>函数间传递channel</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// RW channel</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">chanRW</span><span class="hljs-params">(ch <span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span>)</span></span>&#123;<br>    <span class="hljs-comment">// Read and write</span><br>&#125;<br><br><span class="hljs-comment">// R channel</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">chanRead</span><span class="hljs-params">(ch &lt;-<span class="hljs-keyword">chan</span> <span class="hljs-keyword">int</span>)</span></span>&#123;<br>    <span class="hljs-comment">// Read only</span><br>&#125;<br><br><span class="hljs-comment">// W channel</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">chanWrite</span><span class="hljs-params">(ch <span class="hljs-keyword">chan</span>&lt;- <span class="hljs-keyword">int</span>)</span></span>&#123;<br>    <span class="hljs-comment">// Write only</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>关闭管道</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-function"><span class="hljs-title">close</span><span class="hljs-params">(ch)</span></span><br></code></pre></td></tr></table></figure>
+
+<p>数据读写性质</p>
+<figure class="highlight elixir"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs elixir"><span class="hljs-number">1</span>.读取<span class="hljs-keyword">nil</span>管道，读写均会阻塞<br><span class="hljs-number">2</span>.关闭的管道仍然可读，写数据会panic<br>其中，如果管道缓冲区有数据 -&gt; 可以读取<br>管道缓冲区没数据 -&gt; 返回相应类型的零值<br></code></pre></td></tr></table></figure>
+
+<h3><span id="12channel实现原理fifo队列数据按照写入的顺序流出管道">1.2Channel实现原理–FIFO队列，数据按照写入的顺序流出管道</span></h3><p>数据结构</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> src<span class="hljs-regexp">/runtime/</span>chan.go:chan<br>type hchan struct &#123;<br>    qcount      uint            <span class="hljs-regexp">//</span> 队列中剩余元素个数<br>    dataqsiz    uint            <span class="hljs-regexp">//</span> 环形队列长度<br>    buf         unsafe.Pointer  <span class="hljs-regexp">//</span> 环形队列指针，指向队列的内存<br>    elemsize    uint16          <span class="hljs-regexp">//</span> 每个元素的大小<br>    elemtype    *_type          <span class="hljs-regexp">//</span> 元素类型<br>    sendx       uint            <span class="hljs-regexp">//</span> 队列下标，指示元素写入时存放到队列中的位置（队尾）<br>    recvx       uint            <span class="hljs-regexp">//</span> 队列下标，指示下一个被读取的元素在队列的位置（队首）<br>    recvq       waitq           <span class="hljs-regexp">//</span> 等待读消息的协程队列<br>    sendq       waitq           <span class="hljs-regexp">//</span> 等待写消息的协程队列<br>    lock        mutex           <span class="hljs-regexp">//</span> 互斥锁，chan不允许并发读写<br>    <br>    <span class="hljs-regexp">//</span> 通道是否关闭<br>    closed      uint32<br>    <br>    <span class="hljs-regexp">//</span> 互斥锁（读写锁）<br>    lock mutex<br>&#125;<br><br><span class="hljs-regexp">//</span> waitq 的定义 -- https:<span class="hljs-regexp">//</span>draveness.me<span class="hljs-regexp">/golang/</span>tree/runtime.waitq<br><span class="hljs-regexp">//</span> 实际上是一个队列（双向链表），由协程组成，协程的定义要到后面章节才能讲到<br>type waitq struct &#123;<br>    first *sudog<br>    last *sudog<br>&#125;<br><br><span class="hljs-regexp">//</span> sudog 的定义（双向链表）<br>type sudog struct &#123;<br>    g *g<br>    <span class="hljs-keyword">next</span> *g<br>    prev *g<br>    elem unsafe.Pointer<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>环形队列–缓冲区</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs awk">chan内部实现了一个环形队列作为缓冲区，队列的长度在创建chan的时候指定<br>-- src<span class="hljs-regexp">/runtime/</span>chan.go line71 <span class="hljs-keyword">func</span> makechan(t *chantype, size int) *hchan &#123;&#125;<br><br>qcount：表示了环形队列中剩余的元素个数<br>datasize：表示了队列的长度，即缓冲区的大小<br><br>buf：一个unsafe.Pointer指针，可以指向任意类型的元素，在这里指向了环形队列的实际内存地址<br>-- 内存由 gc 统一分配，buf 指向 gc 返回的内存地址<br><br><span class="hljs-regexp">//</span> chan.go 中，并未简单的使用 sendx 和 recvx 来判断队列的 full 和 empty<br><span class="hljs-regexp">//</span> 判断 channel empty 的函数：src<span class="hljs-regexp">/runtime/</span>chan.go line <span class="hljs-number">128</span> <span class="hljs-keyword">func</span> full(c *hchan) bool &#123;&#125;<br><span class="hljs-regexp">//</span> 判断 channel full 的函数：src<span class="hljs-regexp">/runtime/</span>chan.go line <span class="hljs-number">422</span> <span class="hljs-keyword">func</span> empty(c *hchan) bool &#123;&#125;<br>sendx：下一个写入的值，在环形队列中的位置（循环写，如何判断队满）<br>recvx：下一个读取的值，在环形队列中的位置（循环读，如何判断队空）<br></code></pre></td></tr></table></figure>
+
+<p>等待队列: recvq / sendq</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs go">管道发送数据的源代码：src/runtime/<span class="hljs-keyword">chan</span>.<span class="hljs-keyword">go</span> Line <span class="hljs-number">157</span> <span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">chanSend</span><span class="hljs-params">()</span></span><br>管道接收数据的源代码：src/runtime/<span class="hljs-keyword">chan</span>.<span class="hljs-keyword">go</span> Line <span class="hljs-number">448</span> <span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">chanRecv</span><span class="hljs-params">()</span></span><br><br>其中涉及到了 recvq / sendq 的 阻塞 与 唤醒 状态的切换<br><br>阻塞：<br>recvq：从管道读取数据时，如果管道缓冲区为空，或者没有缓冲区，当前协程会被阻塞，并加入到recvq<br>sendq：向管道写入数据时，如果管道缓冲区为空，或者缓冲区满，当前协程会被阻塞，并加入到sendq<br><br>唤醒：<br>recvq：被向管道写入数据的协程唤醒<br>sendq：被从管道读取数据的协程唤醒<br></code></pre></td></tr></table></figure>
+
+<h3><span id="13管道操作">1.3管道操作</span></h3><p>创建管道 – src/runtime/chan.go Line 71 func makechan()</p>
+<figure class="highlight llvm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs llvm">实际逻辑是，初始化 hchan 结构<br>func makechan(t *chantype<span class="hljs-punctuation">,</span> size int) *hchan &#123;<br>    var <span class="hljs-keyword">c</span> *hchan<br>    <span class="hljs-keyword">c</span> <span class="hljs-operator">=</span> new(hchan)<br>    <span class="hljs-keyword">c</span>.buf <span class="hljs-operator">=</span> <span class="hljs-keyword">malloc</span>(实际内存空间)<br>    <span class="hljs-keyword">c</span>.elemsize <span class="hljs-operator">=</span> 元素大小<br>    <span class="hljs-keyword">c</span>.elemtype <span class="hljs-operator">=</span> 元素类型<br>    <span class="hljs-keyword">c</span>.datasize <span class="hljs-operator">=</span> size<br>    <br>    return <span class="hljs-keyword">c</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>写数据 – src/runtime/chan.go Line 448 func chansend()</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">1</span>.如果当前 recvq 不为空，说明：缓冲区为空，且有协程在等待数据，这个时候直接把数据传递给 recvq 中的第一个协程，不需要写入缓冲区<br><br><span class="hljs-attribute">2</span>.如果当前 recvq 为空，去查看缓冲区的情况<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">1</span> 如果缓冲区有空余位置，直接将数据写入缓冲区，结束发送过程<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">2</span> 如果缓冲区没有空余位置，将当前协程加入 sendq 队列，进入睡眠并等待被唤醒<br></code></pre></td></tr></table></figure>
+
+<p>读数据 – src/runtime/chan.go Line 157 func chanrecv()</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">1</span>.如果当前 sendq 不为空，需要考虑当前通道是否有缓冲区<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">1</span> 无缓冲区，直接从 sendq 中取出一个协程，读取数据并唤醒协程<br>    <span class="hljs-attribute">1</span>.<span class="hljs-number">2</span> 有缓冲区，说明当前缓冲区已经满，并且有协程等待写入数据，此时需要按照FIFO原则，从队首读取数据，将队首标识后移，同时，从sendq中取出一个协程，将数据写入到队尾<br>    <br><span class="hljs-attribute">2</span>.如果当前sendq为空，需要判断缓冲区是否有数据<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">1</span> qcount&gt;<span class="hljs-number">0</span>，说明：缓冲区有数据，直接从队首读数据，队首标识后移<br>    <span class="hljs-attribute">2</span>.<span class="hljs-number">2</span> qcount=<span class="hljs-number">0</span>，说明：缓冲区无数据，需要将当前协程加入到recvq队列，进入睡眠并等待被唤醒<br></code></pre></td></tr></table></figure>
+
+<p>关闭管道 – src/runtime/chan.go Line 351 func closechan()</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// gList 是一个 Stack 结构</span><br>会将recvq中的协程全部唤醒，这些协程获取的数据都为<span class="hljs-literal">nil</span><br>同时唤醒sendq中的全部协程，并触发<span class="hljs-built_in">panic</span>（写已经关闭的通道）<br></code></pre></td></tr></table></figure>
+
+<h2><span id="2slice-切片">2.Slice 切片</span></h2><p>golang中的动态数组，依托底层的数组进行实现</p>
+<h3><span id="21特性">2.1特性</span></h3><h4><span id="初始化">初始化</span></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs go">变量声明：<br><span class="hljs-keyword">var</span> s []<span class="hljs-keyword">int</span><br><br>字面量：<br>s := []<span class="hljs-keyword">int</span>&#123;&#125; <br>s := []<span class="hljs-keyword">int</span>&#123;<span class="hljs-number">1</span>,<span class="hljs-number">2</span>,<span class="hljs-number">3</span>&#125;<br><br><span class="hljs-built_in">make</span>()函数：<br>s := <span class="hljs-built_in">make</span>([]<span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>)<br>s := <span class="hljs-built_in">make</span>([]<span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>, <span class="hljs-number">100</span>)<br><br>切取：左闭右开<br>arr := [<span class="hljs-number">5</span>]<span class="hljs-keyword">int</span>&#123;<span class="hljs-number">1</span>,<span class="hljs-number">2</span>,<span class="hljs-number">3</span>,<span class="hljs-number">4</span>,<span class="hljs-number">5</span>&#125;<br>s := arr[<span class="hljs-number">0</span>:<span class="hljs-number">2</span>]<br></code></pre></td></tr></table></figure>
+
+<h4><span id="切片操作">切片操作</span></h4><figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs stylus"><span class="hljs-function"><span class="hljs-title">len</span><span class="hljs-params">()</span></span>：查询切片长度<br><span class="hljs-function"><span class="hljs-title">cap</span><span class="hljs-params">()</span></span>：查询切片容量<br><span class="hljs-function"><span class="hljs-title">append</span><span class="hljs-params">()</span></span>：切片增加元素<br><span class="hljs-function"><span class="hljs-title">copy</span><span class="hljs-params">(src,dist)</span></span>：<span class="hljs-attribute">src</span>源切片，dist目的切片，将源切片的数据逐个拷贝到目的切片指向的数组，不进行扩容操作<br></code></pre></td></tr></table></figure>
+
+<h3><span id="22实现原理-本质上是个结构体依托数组实现">2.2实现原理 - 本质上是个结构体，依托数组实现</span></h3><h4><span id="数据结构">数据结构</span></h4><figure class="highlight smali"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs smali">// src/runtime/slice.go<br>type slice struct &#123;<br>   <span class="hljs-built_in"> array </span> unsafe.Pointer   // 指向底层数组的指针(任意类型)<br>    len<span class="hljs-built_in"> int </span>                // 切片长度 len()返回<br>    cap<span class="hljs-built_in"> int </span>                // 切片容量 cap()返回<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="切片扩容">切片扩容</span></h4><p>使用append向slice追加元素时，如果slice空间不足，会触发slice扩容<br>实际操作：重新分配一块更大的内存，将old slice拷贝到new slice，然后返回new slice，最后将数据追加到new slice</p>
+<h5><span id="扩容规则">扩容规则</span></h5><p>1.cap &lt; 1024,新slice的容量将扩大为原来的2倍<br>2.cap &gt; 1024,新slice的容量扩大为原来的1.25倍</p>
+<h4><span id="切片表达式">切片表达式</span></h4><figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs css"><span class="hljs-number">1</span>.简单表达式 <span class="hljs-selector-tag">a</span><span class="hljs-selector-attr">[low : high]</span><br><span class="hljs-number">2</span>.扩展表达式 <span class="hljs-selector-tag">a</span><span class="hljs-selector-attr">[low : high : max]</span><br></code></pre></td></tr></table></figure>
+
+<h5><span id="需要注意的点">需要注意的点</span></h5><ul>
+<li>底层数组共享 ： 修改切片的值，将会修改底层数组的值</li>
+<li>边界：左开右闭</li>
+<li>切取string：切取string，得到的也是string，不是字符切片</li>
+</ul>
+<h2><span id="3-map-映射">3. map 映射</span></h2><p>map底层用Hash表实现</p>
+<h3><span id="31-特性">3.1 特性</span></h3><h4><span id="初始化">初始化</span></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs go">字面量初始化：<br>m := <span class="hljs-keyword">map</span>[<span class="hljs-keyword">string</span>]<span class="hljs-keyword">int</span> &#123;<br>    <span class="hljs-string">&quot;apple&quot;</span>, <span class="hljs-number">2</span>,<br>&#125;<br><br><span class="hljs-built_in">make</span>()初始化：<br>m := <span class="hljs-built_in">make</span>([<span class="hljs-keyword">string</span>]<span class="hljs-keyword">int</span>, <span class="hljs-number">10</span>)<br></code></pre></td></tr></table></figure>
+
+<h4><span id="增删改查">增删改查</span></h4><figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs awk">m := make(map[string]int, <span class="hljs-number">10</span>)<br><span class="hljs-regexp">//</span> add<br>m[<span class="hljs-string">&quot;apple&quot;</span>] = <span class="hljs-number">1</span><br><span class="hljs-regexp">//</span> update<br>m[<span class="hljs-string">&quot;apple&quot;</span>] = <span class="hljs-number">2</span><br><span class="hljs-regexp">//</span> <span class="hljs-keyword">delete</span><br><span class="hljs-keyword">delete</span>(m, <span class="hljs-string">&quot;apple&quot;</span>)<br><span class="hljs-regexp">//</span> query<br>v, exist := m[<span class="hljs-string">&quot;apple&quot;</span>]<br><span class="hljs-keyword">if</span> exist &#123;<br>    <span class="hljs-regexp">//</span> 查询成功逻辑<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h5><span id="tips">Tips</span></h5><ul>
+<li>在修改操作中，如果 key 不存在，就转为了插入操作</li>
+<li>delete() 是 map 的内置函数，且没有返回值，在 map 为 nil 或者键不存在时，delete() 不报错，相当于空操作</li>
+<li>map 只能使用 len() 返回 map 内键值对的个数</li>
+</ul>
+<h4><span id="并发读写">并发读写</span></h4><p>map 操作不是原子的，意味着，map 不支持并发读写，不是线程安全的，多个线程同时操作 map 可能会产生读写冲突</p>
+<p>Go1.9 中引入了标准库 sync 下的 Map ， sync 包下面的 map 支持并发读写</p>
+<p>相关链接: <a target="_blank" rel="noopener" href="https://blog.csdn.net/jiankunking/article/details/78808978">Go 1.9 sync Map 源码阅读笔记_衣舞晨风-CSDN博客</a></p>
+<h4><span id="空map">空map</span></h4><p>指的是，未初始化的map，值为nil<br>向值为nil的map添加元素会触发panic<br>查询，删除空 map 不会报错</p>
+<h3><span id="32-实现原理-go专家编程-没有给出对应代码的版本最新版本的代码和书上的出入有点大">3.2 实现原理 – 《Go专家编程》 没有给出对应代码的版本，最新版本的代码和书上的出入有点大</span></h3><h4><span id="数据结构">数据结构</span></h4><p>map的数据结构</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> runtime/map.go Line <span class="hljs-number">115</span><br><span class="hljs-regexp">//</span> A header <span class="hljs-keyword">for</span> a Go map.<br>type hmap struct &#123;<br>    count       int             <span class="hljs-regexp">//</span> 当前保存元素的个数<br>    B           uint8           <span class="hljs-regexp">//</span> bucket 数组的大小<br>    buckets     unsafe.Pointer  <span class="hljs-regexp">//</span> bucket 数组，数组长度为 <span class="hljs-number">2</span>^B<br>    oldbuckets  unsafe.Pointer  <span class="hljs-regexp">//</span> 指向老旧 bucket 的指针，用于扩容<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>bucket的数据结构</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> runtime/map.go<br>type bmap struct &#123;<br>    tophash     [<span class="hljs-number">8</span>]uint8    <span class="hljs-regexp">//</span> 存储 Hash 值高<span class="hljs-number">8</span>位 每个桶存储 <span class="hljs-number">8</span> 个键值对<br>    data        []byte      <span class="hljs-regexp">//</span> 桶里的 key value 数据：key<span class="hljs-regexp">/key/</span>...<span class="hljs-regexp">/value/</span>value<br>    overflow    *bmap       <span class="hljs-regexp">//</span> 指向溢出 bucket 的地址(链地址法解决key冲突)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>存储细节：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs awk">topHash：<br>Hash值拆分为低位和高位<br>Hash低位相同的键，存入当前桶的时候，会把Hash值高位存入到数组中，便于后续匹配<br><br>data：<br>存放key-value数据，且顺序按照：先key后value<br>key<span class="hljs-regexp">/key/</span>key<span class="hljs-regexp">/key/</span>key<span class="hljs-regexp">/key/</span>key<span class="hljs-regexp">/key/</span>value<span class="hljs-regexp">/value/</span>value<span class="hljs-regexp">/value/</span>value<span class="hljs-regexp">/value/</span>value/value<br><br>overflow：链地址法<br>指向下一个bucket，将冲突的键连起来<br></code></pre></td></tr></table></figure>
+
+<h4><span id="负载因子">负载因子</span></h4><figure class="highlight fix"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs fix"><span class="hljs-attr">计算公式：负载因子</span>=<span class="hljs-string">键数量/bucket数量</span><br></code></pre></td></tr></table></figure>
+<p>Golang中规定，当负载因子达到6.5时，触发rehash</p>
+<p>具体过程：申请更多的bucket，对所有的键值对重新组织，使其均匀的分布在bucket</p>
+<h4><span id="扩容">扩容</span></h4><h5><span id="扩容条件">扩容条件</span></h5><ul>
+<li>负载因子大于6.5，平均每个bucket存储的键值对达到6.5个及以上</li>
+<li>overflow数量大于2^15，即overflow的数量超过32768</li>
+</ul>
+<h5><span id="增量扩容-逐步搬迁策略">增量扩容 - 逐步搬迁策略</span></h5><figure class="highlight maxima"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs maxima">当负载因子过大时，新建一个bucket数组，新的bucket数组的长度是原来的<span class="hljs-number">2</span>倍，然后将旧bucket的数据搬迁到新的bucket数组中，搬迁成功后安全的释放掉旧bucket数组<br><br>对应到数据结构中：<span class="hljs-built_in">map</span>中的buckets指向新建的数组，oldbuckets指向旧的bucket数组<br><br>这里说到底搬迁，并非是一次性搬迁，考虑到<span class="hljs-built_in">map</span>中的<span class="hljs-built_in">key</span>-value的数量，一次性搬迁可能会有一个很大的延迟<br><br>Go在这里采用的是逐步搬迁策略：（像极了mysql <span class="hljs-built_in">flush</span> 脏页的操作）<br>    每次访问<span class="hljs-built_in">map</span>时，都会触发一次搬迁，每次搬迁两个键值对<br></code></pre></td></tr></table></figure>
+
+<h5><span id="等量扩容">等量扩容</span></h5><figure class="highlight mipsasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs mipsasm"><span class="hljs-keyword">bucket数量不变，重新做一遍类似增量扩容的操作，把松散的键值对重新排列一次，使得bucket的利用率更高</span><br><span class="hljs-keyword"></span><br>极端的情况下，如经过大量的增删后，键值对集中在一小部分<span class="hljs-keyword">bucket中，会造成溢出的bucket很多，但是访问效率很差</span><br></code></pre></td></tr></table></figure>
+
+<h4><span id="hash函数">hash函数</span></h4><p>golang底层为各种类型如：int32,int64,string等类型定义了一系列相关的函数，确保了不管什么值进来都能计算出一个32位的hash值</p>
+<p>具体实现参见：<br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/8ea1bf5058c7">深入理解 Go map：赋值和扩容迁移</a></p>
+<h4><span id="增删改查">增删改查</span></h4><h5><span id="查找过程">查找过程</span></h5><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs python">一般情况：<br><span class="hljs-number">1.</span>根据key值，计算出<span class="hljs-built_in">hash</span>值<br><span class="hljs-number">2.</span>取<span class="hljs-built_in">hash</span>值低位与hmap.B取模来确定bucket的位置<br><span class="hljs-number">3.</span>取<span class="hljs-built_in">hash</span>值高位，在tophash数组中查询<br><span class="hljs-number">4.</span>如果tophash[i]中存储的<span class="hljs-built_in">hash</span>值与当前key的<span class="hljs-built_in">hash</span>值相同，则获取tophash[i]指向的key值进行比较<br><span class="hljs-number">5.</span>当前bucket没有找到，依次从溢出的bucket中寻找<br><br>特殊情况：<br>如果<span class="hljs-built_in">map</span>处于搬迁过程中，那么查找时，优先从oldbuckets数组中查找<br></code></pre></td></tr></table></figure>
+
+<h5><span id="添加过程">添加过程</span></h5><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs python">一般情况：<br><span class="hljs-number">1.</span>根据key值，计算出<span class="hljs-built_in">hash</span>值<br><span class="hljs-number">2.</span>取<span class="hljs-built_in">hash</span>值低位与hmap.B取模来确定bucket的位置<br><span class="hljs-number">3.</span>取<span class="hljs-built_in">hash</span>值高位，在tophash数组中查询<br><span class="hljs-number">4.</span>如果tophash[i]中存储的<span class="hljs-built_in">hash</span>值与当前key的<span class="hljs-built_in">hash</span>值相同，则获取tophash[i]指向的key值进行比较，直接更新值<br><span class="hljs-number">5.</span>当前bucket没有找到，依次从溢出的bucket中寻找，找到后更新<br><span class="hljs-number">6.</span>如果未找到key，在bucket中寻找空余位置插入<br><br>特殊情况：<br>如果<span class="hljs-built_in">map</span>处于搬迁过程中，新元素会直接添加到新的bucket数组中，但是查询过程仍是从oldbuckets开始<br></code></pre></td></tr></table></figure>
+
+<h5><span id="删除过程">删除过程</span></h5><figure class="highlight mipsasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs mipsasm">简述如下：<br><span class="hljs-number">1</span>.先查找元素，查到直接从相应<span class="hljs-keyword">bucket删除</span><br><span class="hljs-keyword"></span><span class="hljs-number">2</span>.查不到就什么都不做<br></code></pre></td></tr></table></figure>
+
+<h2><span id="4struct-结构体">4.struct 结构体</span></h2><p>类似于c++/java中的class定义，源于c中的struct</p>
+<h3><span id="41-内嵌字段">4.1 内嵌字段</span></h3><p>Tips:</p>
+<figure class="highlight capnproto"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs capnproto"><span class="hljs-number">1</span>.<span class="hljs-keyword">struct</span>中可以内嵌各种类型的字段，其他结构体，但是不能嵌套方法<br><span class="hljs-number">2</span>.<span class="hljs-keyword">struct</span>没有继承的概念，当需要<span class="hljs-string">&quot;复用&quot;</span>其他结构体时，需要通过组合的方式将其他结构体嵌入当前结构体<br><span class="hljs-number">3</span>.内嵌结构体时，有两种方式：显示指定，隐式指定<br><span class="hljs-number">4</span>.显式指定时，仅代表某种类型的字段<br><span class="hljs-number">5</span>.隐式指定时，原结构体的字段和方法相当于被当前结构体<span class="hljs-string">&quot;继承&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>Sample Code:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// 结构体声明</span><br><span class="hljs-keyword">type</span> Animal <span class="hljs-keyword">struct</span> &#123;<br>    Name <span class="hljs-keyword">string</span>     <span class="hljs-comment">// Animal内嵌字段</span><br>&#125;<br><br><span class="hljs-comment">// 结构体Animal的方法</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-params">(a *Animal)</span> <span class="hljs-title">SetName</span><span class="hljs-params">(name <span class="hljs-keyword">string</span>)</span></span>&#123;<br>    a.Name = name<br>&#125;<br><br><span class="hljs-comment">// 隐式指定Animal字段 -- &quot;继承&quot;了Animal的SetName()方法</span><br><span class="hljs-keyword">type</span> Cat <span class="hljs-keyword">struct</span> &#123;<br>    Animal<br>&#125;<br><br><span class="hljs-comment">// 显示指定Animal字段</span><br><span class="hljs-keyword">type</span> Dog <span class="hljs-keyword">struct</span> &#123;<br>    a Animal<br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">EmbeddedFoo</span><span class="hljs-params">()</span></span> &#123;<br>    c := Cat&#123;&#125;<br>    <span class="hljs-comment">// 操作Name字段的几种方式</span><br>    <br>    <span class="hljs-comment">// 1.使用Animal的SetName()</span><br>    c.SetName(<span class="hljs-string">&quot;A&quot;</span>)<br>    <br>    <span class="hljs-comment">// 2.使用隐式字段</span><br>    c.Animal.SetName(<span class="hljs-string">&quot;a&quot;</span>)<br>    <br>    <span class="hljs-comment">// 3.使用隐式字段的Name</span><br>    c.Animal.Name = <span class="hljs-string">&quot;B&quot;</span><br>    <br>    <span class="hljs-comment">// 4.使用Name</span><br>    c.Name = <span class="hljs-string">&quot;b&quot;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通过结构体的组合，Golang也有多种设计模式：<br><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1431487">golang设计模式-以kubernetes源码为例</a></p>
+<h3><span id="42-方法受体">4.2 方法受体</span></h3><p>对于结构体要区分方法和函数</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs swift">函数声明：<br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">函数名</span> (参数)</span> &#123; 函数体 &#125;<br><br>方法声明：<br><span class="hljs-function"><span class="hljs-keyword">func</span> (接收者)</span> 函数名 (参数) &#123; 函数体 &#125;<br></code></pre></td></tr></table></figure>
+
+<p>Tips:</p>
+<figure class="highlight ocaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ocaml"><span class="hljs-number">1.</span>这里的接收者，对应的是reciver，表示方法的接收者，也称为方法受体  <br><span class="hljs-number">2.</span>表示该方法的作用对象 -&gt; 只有作用对象才可以调用该方法<br><span class="hljs-number">3.</span>此处的使用与<span class="hljs-keyword">class</span>和c语言<span class="hljs-keyword">struct</span>中方法的定义和使用相差较远，前者的方法都是定义在<span class="hljs-keyword">class</span>和<span class="hljs-keyword">struct</span>中，用于表示，只有该类或者该类的子类才可以调用<br><span class="hljs-number">4.</span>golang的方法并不定义在<span class="hljs-keyword">struct</span>中，反而定义在<span class="hljs-keyword">struct</span>的外部，且需要显示指定方法被谁调用<br></code></pre></td></tr></table></figure>
+
+<p>Sample code:</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs reasonml"><span class="hljs-comment">// struct定义</span><br><span class="hljs-keyword">struct</span> Student &#123;<br>    Name <span class="hljs-built_in">string</span><br>&#125;<br><br><span class="hljs-comment">// SetName() 方法定义 方法受体 s Student 对象</span><br><span class="hljs-keyword">struct</span> (s Student) <span class="hljs-constructor">SetName(<span class="hljs-params">name</span> <span class="hljs-params">string</span>)</span> &#123;<br>    s.Name = name<br>&#125;<br><br><span class="hljs-comment">// UpdateName() 方法定义 方法受体 s *Student 对象指针</span><br><span class="hljs-keyword">struct</span> (s *Student) <span class="hljs-constructor">UpdateName(<span class="hljs-params">name</span> <span class="hljs-params">string</span>)</span> &#123;<br>    s.Name = name<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对象和对象指针的区别：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs">1.对象指针可以修改对象的字段<br>2.对象相当于在副本上做了修改，无法修改对象的字段<br></code></pre></td></tr></table></figure>
+
+<h3><span id="43-字段标签tag-本质上是字符串">4.3 字段标签Tag – 本质上是字符串</span></h3><p>struct允许给字段添加标记Tag</p>
+<h4><span id="tag本质">Tag本质</span></h4><h5><span id="底层数据结构">底层数据结构</span></h5><p>StructField表示结构体的一个字段</p>
+<figure class="highlight crmsh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs crmsh">// reflect包<br><span class="hljs-keyword">type</span> StructField struct &#123;<br>    Name <span class="hljs-keyword">string</span>     // 字段名称<br>    <span class="hljs-keyword">Type</span> <span class="hljs-keyword">type</span>       // 字段类型<br>    <span class="hljs-keyword">Tag</span> <span class="hljs-title">StructTag</span>   // <span class="hljs-keyword">Tag</span><br>    <span class="hljs-title">...</span><br><span class="hljs-title">&#125;</span><br><span class="hljs-title">// Tag</span> 字段的定义为<span class="hljs-keyword">string</span><br><span class="hljs-keyword">type</span> StructTag <span class="hljs-keyword">string</span><br></code></pre></td></tr></table></figure>
+
+<h5><span id="tag约定">Tag约定</span></h5><p>Tag必须由 key : “value”组成，其中：</p>
+<figure class="highlight basic"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs basic"><span class="hljs-number">1</span>.<span class="hljs-keyword">key</span>：非空字符串，不能包含控制字符，冒号，引号，空格<br><span class="hljs-number">2</span>.value：字符串<br></code></pre></td></tr></table></figure>
+
+<p>Sample Code:</p>
+<figure class="highlight ocaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ocaml"><span class="hljs-keyword">type</span> <span class="hljs-type">TypeMeta</span> <span class="hljs-keyword">struct</span> &#123;<br>    <span class="hljs-type">Kind</span> <span class="hljs-built_in">string</span> `json:<span class="hljs-string">&quot;kind,omitempty&quot;</span> protobuf:<span class="hljs-string">&quot;bytes,1,opt,name=kind&quot;</span>`<br>    <span class="hljs-type">APIVersion</span> <span class="hljs-built_in">string</span> `json:<span class="hljs-string">&quot;apiVersion,omitempty&quot;</span> protobuf:<span class="hljs-string">&quot;bytes,2,opt,name=apiVersion&quot;</span>`<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>其中：</p>
+<figure class="highlight pgsql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs pgsql"><span class="hljs-type">json</span>用于指定struct与<span class="hljs-type">JSON</span>转换<br>protobuf用于控制序列化和反序列化<br></code></pre></td></tr></table></figure>
+
+<h5><span id="反射获取tag">反射获取Tag</span></h5><p>reflect提供了相关的方法，去获取某一字段的Tag</p>
+<p>Sample Code:</p>
+<figure class="highlight roboconf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs roboconf">func PrintTag() &#123;<br>    <span class="hljs-attribute">t</span> := TypeMeta&#123;&#125;<br>    ty := reflect<span class="hljs-variable">.TypeOf</span>(t)<br>    <br>    for i := 0; <span class="hljs-attribute">i &lt; ty.NumField(); i++ &#123;</span><br><span class="hljs-attribute">        fmt.Printf(&quot;Field</span>: %s, Tag: %s\n&quot;, ty<span class="hljs-variable">.Field</span>(i)<span class="hljs-variable">.Name</span>, ty<span class="hljs-variable">.Field</span>(i)<span class="hljs-variable">.Tag</span><span class="hljs-variable">.Get</span>(&quot;json&quot;))<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h2><span id="5string-字符串">5.string 字符串</span></h2><p>Golang的字符串在初始化之后，不能再对其进行修改，这一点特性与Java相同<br>与C/C++不同，C/C++在字符串初始化之后仍然可以对其进行修改</p>
+<h3><span id="51特性">5.1特性</span></h3><h4><span id="声明">声明</span></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// 声明空字符串再赋值</span><br><span class="hljs-keyword">var</span> s <span class="hljs-keyword">string</span><br>s = <span class="hljs-string">&quot;Hello world&quot;</span><br><br><span class="hljs-comment">// 直接赋值</span><br>s := <span class="hljs-string">&quot;Hello world&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h4><span id="双引号和反单引号">双引号和反单引号</span></h4><p>字符串赋值时，可以使用双引号和反单引号赋值：</p>
+<figure class="highlight arcade"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs arcade"><span class="hljs-number">1.</span><span class="hljs-string">&quot;&quot;</span>需要对特殊字符串进行转义<br><span class="hljs-number">2.</span><span class="hljs-string">``</span>不需要对特殊字符串进行转义<br></code></pre></td></tr></table></figure>
+
+<p>Sample Code:</p>
+<figure class="highlight livescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs livescript">双引号：<br>s := <span class="hljs-string">&quot;Hi, \nthis is \&quot;ThomasYuan\&quot;.&quot;</span><br>转义字符：<span class="hljs-string">\n</span> -&gt; 换行 <span class="hljs-string">\&quot;</span> -&gt; <span class="hljs-string">&quot;</span><br><span class="hljs-string"></span><br><span class="hljs-string">单引号：</span><br><span class="hljs-string">s := `Hi,</span><br><span class="hljs-string">this is &quot;</span>ThomasYuan<span class="hljs-string">&quot;.`</span><br><span class="hljs-string">不需要对换行\n 以及 &quot;</span>进行转义<br></code></pre></td></tr></table></figure>
+
+<h4><span id="字符串拼接">字符串拼接</span></h4><p>使用 + 进行拼接，字符串拼接时会触发内存分配以及内存拷贝</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs">1.计算拼接后总共需要分配的的内存空间<br>2.把老字符串逐步拷贝到新的字符串，记录老字符串结尾<br>3.在结尾处拼接新的字符串<br></code></pre></td></tr></table></figure>
+
+<h4><span id="类型转换">类型转换</span></h4><p>Golang支持string和字符切片[]byte之间的转换，涉及到一次内存拷贝，会有一定的开销</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// string to []byte</span><br>s := <span class="hljs-string">&quot;hello&quot;</span><br>b := []<span class="hljs-keyword">byte</span>(s)<br><br><span class="hljs-comment">// []byte to string</span><br>b := []<span class="hljs-keyword">byte</span>&#123;<span class="hljs-string">&#x27;h&#x27;</span>, <span class="hljs-string">&#x27;e&#x27;</span>, <span class="hljs-string">&#x27;l&#x27;</span>, <span class="hljs-string">&#x27;l&#x27;</span>, <span class="hljs-string">&#x27;o&#x27;</span>&#125;<br>s = <span class="hljs-keyword">string</span>(b)<br></code></pre></td></tr></table></figure>
+
+<h4><span id="编码">编码</span></h4><p>string使用字符的UTF-8编码，要考虑中文字符占多少个字节</p>
+<h4><span id="值不可修改">值不可修改</span></h4><p>可以对字符串重新赋值，但是不可以通过下标修改字符串中的值</p>
+<h4><span id="标准库函数">标准库函数</span></h4><p>标准库strings包提供了大量的字符串操作函数</p>
+<p><a target="_blank" rel="noopener" href="http://doc.golang.ltd/">Golang标准库中文文档：package strings</a></p>
+<h3><span id="52实现原理">5.2实现原理</span></h3><h4><span id="数据结构">数据结构</span></h4><p>标准库builtin中定义了string类型:</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> <span class="hljs-number">8</span>位byte序列构成的字符串，通常是utf-<span class="hljs-number">8</span>编码的文本<br><span class="hljs-regexp">//</span> 空字符可以为空但不能是nil<br><span class="hljs-regexp">//</span> 其值不可变<br>type string string<br></code></pre></td></tr></table></figure>
+
+<p>数据结构定义如下：</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs awk"><span class="hljs-regexp">//</span> src<span class="hljs-regexp">/runtime/</span>string.go<br>type stringStruct struct &#123;<br>    str     unsafe.Pointer  <span class="hljs-regexp">//</span> 指向字符串首地址的指针<br>    len     int             <span class="hljs-regexp">//</span> 字符串长度<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>与切片相比，缺失了cap int 属性</p>
+<p>可以使用runtime包中的gostringnocopy()函数来生成字符串：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-keyword">var</span> str <span class="hljs-keyword">string</span><br>str = <span class="hljs-string">&quot;hello&quot;</span><br><br><span class="hljs-comment">// 先构建stringStruct对象，在转成string</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">gostringnocopy</span><span class="hljs-params">(str *<span class="hljs-keyword">byte</span>)</span> <span class="hljs-title">string</span></span> &#123;<br>    <span class="hljs-comment">// 构造stringStruct</span><br>    ss := stringStruct&#123;str: unsafe.Pointer(str), <span class="hljs-built_in">len</span>: findnull(str)&#125;<br>    <span class="hljs-comment">// stringStruct 转成 string</span><br>    s := *(*<span class="hljs-keyword">string</span>)(unsafe.Pointer(&amp;ss))<br>    <span class="hljs-keyword">return</span> s<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="字符串拼接">字符串拼接</span></h4><p>runtime包中，concatstrings()函数用于拼接字符串，伪代码如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// a []string 传入参数为 string切片，一次传去全部的待拼接的字符串</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">concatstrings</span><span class="hljs-params">(a []<span class="hljs-keyword">string</span>)</span></span> &#123;<br>    length := <span class="hljs-number">0</span><br>    <span class="hljs-comment">// 计算出最终的字符串的长度</span><br>    <span class="hljs-keyword">for</span> _, str := <span class="hljs-keyword">range</span> a &#123;<br>        length += <span class="hljs-built_in">len</span>(str)<br>    &#125;<br>    <span class="hljs-comment">// 分配内存，rawstring函数返回一个string以及一个字符切片，两者共享内存空间</span><br>    s, b := rawstring(length)<br>    <br>    <span class="hljs-comment">// string无法修改，修改与其共享内存空间的字符切片，进而达到修改string的目的</span><br>    <span class="hljs-keyword">for</span> _, str := <span class="hljs-keyword">range</span> a &#123;<br>        <span class="hljs-built_in">copy</span>(b, str)<br>        b = b[<span class="hljs-built_in">len</span>(str):]<br>    &#125;<br>    <span class="hljs-comment">// 返回拼接而成的字符串</span><br>    <span class="hljs-keyword">return</span> s<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>rawstring()的源码</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// 生成一个新的string，返回的string和切片共享相同的空间</span><br><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">rawstring</span><span class="hljs-params">(size <span class="hljs-keyword">int</span>)</span> <span class="hljs-params">(s <span class="hljs-keyword">string</span>, b []<span class="hljs-keyword">byte</span>)</span></span> &#123;<br>    <span class="hljs-comment">// mallocgc()分配出相应的空间</span><br>    p := mallocgc(<span class="hljs-keyword">uintptr</span>(size), <span class="hljs-literal">nil</span>, <span class="hljs-literal">false</span>)<br>    <span class="hljs-comment">// 转成stringStruct对象</span><br>    stringStructOf(&amp;s).str = p<br>    stringStructOf(&amp;s).<span class="hljs-built_in">len</span> = size<br>    <br>    <span class="hljs-comment">// 字符切片与string共享空间</span><br>    *(*slice)(unsafe.Pointer(&amp;b)) = slice&#123;p, size, size&#125;<br>    <br>    <span class="hljs-keyword">return</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4><span id="类型转换">类型转换</span></h4><h5><span id="byte-转-string">[]byte 转 string：</span></h5><p>可以使用函数如下：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs arduino"><span class="hljs-function">func <span class="hljs-title">GetStringBySlice</span><span class="hljs-params">(s []<span class="hljs-keyword">byte</span>)</span> string </span>&#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-built_in">string</span>(s)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>转换过程涉及到内存拷贝：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-number">1.</span>根据切片长度申请内存空间，假设内存地址为p，长度为<span class="hljs-built_in">len</span><br><span class="hljs-number">2.</span>构建<span class="hljs-keyword">string</span>（<span class="hljs-keyword">string</span>.str = p, <span class="hljs-keyword">string</span>.<span class="hljs-built_in">len</span> = <span class="hljs-built_in">len</span>）<br><span class="hljs-number">3.</span>拷贝数据（切片中数据拷贝到新申请的内存空间）<br></code></pre></td></tr></table></figure>
+
+<p>runtime包中使用slicebytetostring()函数将[]byte转为string，其实现逻辑如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">slicebytetostring</span><span class="hljs-params">(buf *tmpBuf, b []<span class="hljs-keyword">byte</span>)</span> <span class="hljs-params">(str <span class="hljs-keyword">string</span>)</span></span> &#123;<br>    <span class="hljs-comment">// 新切片的内存空间</span><br>    <span class="hljs-keyword">var</span> p unsafe.Pointer<br>    <span class="hljs-keyword">if</span> buf != <span class="hljs-literal">nil</span> &amp;&amp; <span class="hljs-built_in">len</span>(b) &lt;= <span class="hljs-built_in">len</span>(buf) &#123;<br>        <span class="hljs-comment">// 如果预留buf够用，则用预留buf</span><br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        <span class="hljs-comment">// 否则重新申请内存</span><br>        p = mallocgc(<span class="hljs-keyword">uintptr</span>(<span class="hljs-built_in">len</span>(b)), <span class="hljs-literal">nil</span>, <span class="hljs-literal">false</span>)<br>    &#125;<br>    <span class="hljs-comment">// 构建字符串</span><br>    stringStructOf(&amp;str).str = p<br>    stringStryctOf(&amp;str).<span class="hljs-built_in">len</span> = <span class="hljs-built_in">len</span>(b)<br>    <span class="hljs-comment">// 将切片底层数组中数据拷贝到字符串</span><br>    memmove(p, (*(*slice)(unsafe.Pointer(&amp;b))).array, <span class="hljs-keyword">uintptr</span>(<span class="hljs-built_in">len</span>(b)))<br>    <span class="hljs-keyword">return</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+
+<h5><span id="string-转-byte">string 转 []byte</span></h5><p>可以使用函数如下：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs csharp"><span class="hljs-function">func <span class="hljs-title">getSliceByString</span>(<span class="hljs-params">s <span class="hljs-built_in">string</span></span>) []<span class="hljs-built_in">byte</span></span> &#123;<br>    <span class="hljs-keyword">return</span> []<span class="hljs-built_in">byte</span>(str)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>转换过程也涉及到内存拷贝：</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs angelscript"><span class="hljs-number">1.</span>申请切片内存空间<br><span class="hljs-number">2.</span>将<span class="hljs-built_in">string</span>拷贝到切片<br></code></pre></td></tr></table></figure>
+
+<p>runtime包中提供了stringtoslicebyte()函数，将string转为[]byte,实现逻辑如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs go"><span class="hljs-function"><span class="hljs-keyword">func</span> <span class="hljs-title">stringtoslicebyte</span><span class="hljs-params">(buf *tmpBuf, s <span class="hljs-keyword">string</span>)</span> <span class="hljs-params">(b []<span class="hljs-keyword">byte</span>)</span></span> &#123;<br>    <span class="hljs-comment">// 声明字符切片</span><br>    <span class="hljs-keyword">var</span> b []<span class="hljs-keyword">byte</span><br>    <span class="hljs-keyword">if</span> buf != <span class="hljs-literal">nil</span> &amp;&amp; <span class="hljs-built_in">len</span>(s) &lt;= <span class="hljs-built_in">len</span>(buf) &#123;<br>        *buf = tmpBuf&#123;&#125;<br>        <span class="hljs-comment">// 从预留buf中切出新的切片</span><br>        b = buf[:<span class="hljs-built_in">len</span>(s)]<br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        <span class="hljs-comment">// 如果预留buf空间不够，重新申请内存</span><br>        b = rawbyteslice(<span class="hljs-built_in">len</span>(s))<br>    &#125;<br>    <span class="hljs-comment">// string拷贝到[]byte</span><br>    <span class="hljs-built_in">copy</span>(b, s)<br>    <br>    <span class="hljs-keyword">return</span> b<br>&#125;<br></code></pre></td></tr></table></figure>
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/">Golang</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Golang/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/%E3%80%8AGo%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E3%80%8B/">《Go专家编程》</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-2-%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%8F%8A%E5%85%B6%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Cap 2: 控制结构及其底层实现</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2021/12/31/Cap-1-Map-%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86/">
+                        <span class="hidden-mobile">Cap 1: Map 实现原理</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments" lazyload>
+                
+                  
+                
+                
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"0SrF373pw8HzuOT402REPdE9-gzGzoHsz","appKey":"PijYR5FjJEAiikcHPtF712qM","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          Fluid.plugins.initFancyBox('#valine .vcontent img:not(.vemoji)');
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- LeanCloud 统计PV -->
+        <span id="leancloud-site-pv-container" style="display: none">
+            总访问量 
+            <span id="leancloud-site-pv"></span>
+             次
+          </span>
+      
+      
+        <!-- LeanCloud 统计UV -->
+        <span id="leancloud-site-uv-container" style="display: none">
+            总访客数 
+            <span id="leancloud-site-uv"></span>
+             人
+          </span>
+      
+
+    
+  </div>
+
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  
+    <script  src="https://cdn.jsdelivr.net/npm/tocbot@4/dist/tocbot.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3/dist/jquery.fancybox.min.js" ></script>
+  
+  
+    <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4/anchor.min.js" ></script>
+  
+  
+    <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js" ></script>
+  
+
+
+
+
+  <script defer src="/js/leancloud.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+        typing(title);
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+</body>
+</html>
